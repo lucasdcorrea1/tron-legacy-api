@@ -1,0 +1,284 @@
+basePath: /api/v1
+definitions:
+  models.AuthResponse:
+    properties:
+      profile:
+        $ref: '#/definitions/models.Profile'
+      token:
+        type: string
+      user:
+        $ref: '#/definitions/models.UserResponse'
+    type: object
+  models.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    type: object
+  models.Profile:
+    properties:
+      avatar:
+        type: string
+      bio:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      settings:
+        $ref: '#/definitions/models.ProfileSettings'
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  models.ProfileSettings:
+    properties:
+      currency:
+        type: string
+      date_format:
+        description: '"DD/MM/YYYY", "MM/DD/YYYY", etc'
+        type: string
+      first_day_of_week:
+        description: 0=Sunday, 1=Monday
+        type: integer
+      language:
+        type: string
+      theme:
+        $ref: '#/definitions/models.ThemeSettings'
+    type: object
+  models.RegisterRequest:
+    properties:
+      email:
+        type: string
+      name:
+        type: string
+      password:
+        type: string
+    type: object
+  models.ThemeSettings:
+    properties:
+      accent_color:
+        description: Hex color for accents
+        type: string
+      mode:
+        description: '"dark", "light", "system"'
+        type: string
+      primary_color:
+        description: 'Hex color, default: #D4AF37 (gold)'
+        type: string
+    type: object
+  models.UpdateProfileRequest:
+    properties:
+      avatar:
+        type: string
+      bio:
+        type: string
+      name:
+        type: string
+      settings:
+        $ref: '#/definitions/models.ProfileSettings'
+    type: object
+  models.UserResponse:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+    type: object
+host: localhost:8088
+info:
+  contact: {}
+  description: API de autenticacao e gerenciamento de usuarios
+  title: Tron Legacy API
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Autentica usuário com email e senha
+      parameters:
+      - description: Dados de login
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.AuthResponse'
+        "400":
+          description: Invalid request body
+          schema:
+            type: string
+        "401":
+          description: Invalid credentials
+          schema:
+            type: string
+      summary: Login de usuário
+      tags:
+      - auth
+  /auth/me:
+    get:
+      consumes:
+      - application/json
+      description: Retorna informações do usuário autenticado
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.AuthResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Dados do usuário logado
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Cria uma nova conta com email e senha
+      parameters:
+      - description: Dados de registro
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.AuthResponse'
+        "400":
+          description: Invalid request body
+          schema:
+            type: string
+        "409":
+          description: Email already exists
+          schema:
+            type: string
+      summary: Registrar novo usuário
+      tags:
+      - auth
+  /profile:
+    get:
+      consumes:
+      - application/json
+      description: Retorna o perfil do usuário autenticado
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Profile'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Profile not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Buscar perfil do usuário
+      tags:
+      - profile
+    put:
+      consumes:
+      - application/json
+      description: Atualiza os dados do perfil do usuário autenticado
+      parameters:
+      - description: Dados para atualizar
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateProfileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Profile'
+        "400":
+          description: Invalid request body
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Profile not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar perfil do usuário
+      tags:
+      - profile
+  /profile/avatar:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Faz upload de uma imagem para o avatar do usuário. A imagem é redimensionada
+        para 256x256 e comprimida.
+      parameters:
+      - description: Imagem do avatar (PNG ou JPEG, max 5MB)
+        in: formData
+        name: avatar
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Profile'
+        "400":
+          description: Invalid image
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "413":
+          description: Image too large
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Upload de foto de perfil
+      tags:
+      - profile
+securityDefinitions:
+  BearerAuth:
+    description: 'Digite: Bearer {seu_token_aqui}'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

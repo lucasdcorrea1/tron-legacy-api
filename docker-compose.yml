@@ -1,0 +1,115 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8088:8080"
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/tron_legacy
+      - REDIS_URL=redis://redis:6379
+      - PORT=8080
+      - JWT_SECRET=tron-legacy-dev-secret-change-in-production-2024
+      - JWT_EXPIRY=168h
+    depends_on:
+      - mongo
+      - redis
+    restart: unless-stopped
+    labels:
+      - "logging=promtail"
+
+  mongo:
+    image: mongo:7
+    environment:
+      - MONGO_INITDB_DATABASE=tron_legacy
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27018:27017"
+    restart: unless-stopped
+
+  mongo-express:
+    image: mongo-express
+    ports:
+      - "8082:8081"
+    environment:
+      - ME_CONFIG_MONGODB_URL=mongodb://mongo:27017/
+      - ME_CONFIG_BASICAUTH=false
+    depends_on:
+      - mongo
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # MONITORING STACK
+  # ==========================================
+
+  prometheus:
+    image: prom/prometheus:v2.50.0
+    ports:
+      - "9092:9090"  # Porta 9092 para evitar conflitos
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:2.9.4
+    ports:
+      - "3102:3100"
+    user: "0"
+    volumes:
+      - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:2.9.4
+    volumes:
+      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.3.1
+    ports:
+      - "3003:3000"  # Porta 3003 para evitar conflitos
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=tron123
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - loki
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
+  redis_data:
+  prometheus_data:
+  loki_data:
+  grafana_data:

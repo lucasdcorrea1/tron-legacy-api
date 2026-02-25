@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: tron-legacy-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: MONGO_URI
+        sync: false  # Voce vai definir manualmente no dashboard
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRY
+        value: 168h
+      - key: PORT
+        value: 8080
