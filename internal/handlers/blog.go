@@ -267,11 +267,6 @@ func UpdatePost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	postIDStr := r.PathValue("id")
-	postID, err := primitive.ObjectIDFromHex(postIDStr)
-	if err != nil {
-		http.Error(w, "Invalid post ID", http.StatusBadRequest)
-		return
-	}
 
 	var req models.UpdatePostRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -282,9 +277,16 @@ func UpdatePost(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Fetch existing post
+	// Fetch existing post by ObjectID or slug
 	var post models.BlogPost
-	err = database.Posts().FindOne(ctx, bson.M{"_id": postID}).Decode(&post)
+	var filter bson.M
+	postID, err := primitive.ObjectIDFromHex(postIDStr)
+	if err == nil {
+		filter = bson.M{"_id": postID}
+	} else {
+		filter = bson.M{"slug": postIDStr}
+	}
+	err = database.Posts().FindOne(ctx, filter).Decode(&post)
 	if err != nil {
 		http.Error(w, "Post not found", http.StatusNotFound)
 		return
@@ -307,7 +309,7 @@ func UpdatePost(w http.ResponseWriter, r *http.Request) {
 	if req.Title != nil {
 		setFields["title"] = *req.Title
 		newSlug := generateSlug(*req.Title)
-		newSlug, err = ensureUniqueSlug(ctx, newSlug, postID)
+		newSlug, err = ensureUniqueSlug(ctx, newSlug, post.ID)
 		if err == nil {
 			setFields["slug"] = newSlug
 		}
@@ -347,7 +349,7 @@ func UpdatePost(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	_, err = database.Posts().UpdateOne(ctx, bson.M{"_id": postID}, update)
+	_, err = database.Posts().UpdateOne(ctx, bson.M{"_id": post.ID}, update)
 	if err != nil {
 		http.Error(w, "Error updating post", http.StatusInternalServerError)
 		return
@@ -355,11 +357,11 @@ func UpdatePost(w http.ResponseWriter, r *http.Request) {
 
 	// Return updated post
 	var updated models.BlogPost
-	database.Posts().FindOne(ctx, bson.M{"_id": postID}).Decode(&updated)
+	database.Posts().FindOne(ctx, bson.M{"_id": post.ID}).Decode(&updated)
 
 	middleware.IncPostUpdated()
 	slog.Info("post_updated",
-		"post_id", postID.Hex(),
+		"post_id", post.ID.Hex(),
 		"user_id", userID.Hex(),
 	)
 
@@ -391,18 +393,20 @@ func DeletePost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	postIDStr := r.PathValue("id")
-	postID, err := primitive.ObjectIDFromHex(postIDStr)
-	if err != nil {
-		http.Error(w, "Invalid post ID", http.StatusBadRequest)
-		return
-	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Fetch post
+	// Fetch post by ObjectID or slug
 	var post models.BlogPost
-	err = database.Posts().FindOne(ctx, bson.M{"_id": postID}).Decode(&post)
+	var filter bson.M
+	postID, err := primitive.ObjectIDFromHex(postIDStr)
+	if err == nil {
+		filter = bson.M{"_id": postID}
+	} else {
+		filter = bson.M{"slug": postIDStr}
+	}
+	err = database.Posts().FindOne(ctx, filter).Decode(&post)
 	if err != nil {
 		http.Error(w, "Post not found", http.StatusNotFound)
 		return
@@ -418,7 +422,7 @@ func DeletePost(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	_, err = database.Posts().DeleteOne(ctx, bson.M{"_id": postID})
+	_, err = database.Posts().DeleteOne(ctx, bson.M{"_id": post.ID})
 	if err != nil {
 		http.Error(w, "Error deleting post", http.StatusInternalServerError)
 		return
@@ -426,7 +430,7 @@ func DeletePost(w http.ResponseWriter, r *http.Request) {
 
 	middleware.IncPostDeleted()
 	slog.Info("post_deleted",
-		"post_id", postID.Hex(),
+		"post_id", post.ID.Hex(),
 		"user_id", userID.Hex(),
 	)
 
