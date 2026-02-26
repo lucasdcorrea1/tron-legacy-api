@@ -204,6 +204,7 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 		Content:         req.Content,
 		Excerpt:         req.Excerpt,
 		CoverImage:      req.CoverImage,
+		CoverImages:     req.CoverImages,
 		Category:        req.Category,
 		Tags:            req.Tags,
 		Status:          req.Status,
@@ -323,6 +324,9 @@ func UpdatePost(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.CoverImage != nil {
 		setFields["cover_image"] = *req.CoverImage
+	}
+	if req.CoverImages != nil {
+		setFields["cover_images"] = req.CoverImages
 	}
 	if req.Category != nil {
 		setFields["category"] = *req.Category
@@ -560,48 +564,71 @@ func UploadPostImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Redimensionar para max 800px de largura mantendo proporção
-	resized := resizeCover(img, 800)
+	// Generate 3 size variants with shared group_id
+	groupID := primitive.NewObjectID().Hex()
 
-	// Comprimir como JPEG quality 65 (~30-50KB por imagem)
-	var buf bytes.Buffer
-	if err := jpeg.Encode(&buf, resized, &jpeg.Options{Quality: 65}); err != nil {
-		http.Error(w, "Failed to process image", http.StatusInternalServerError)
-		return
+	type sizeVariant struct {
+		label   string
+		width   int
+		quality int
+	}
+	variants := []sizeVariant{
+		{"thumb", 400, 55},
+		{"card", 800, 65},
+		{"banner", 1920, 75},
 	}
 
-	base64Img := base64.StdEncoding.EncodeToString(buf.Bytes())
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	// Salvar na collection images
-	imgDoc := models.BlogImage{
-		ID:         primitive.NewObjectID(),
-		UploaderID: userID,
-		Data:       base64Img,
-		Size:       buf.Len(),
-		CreatedAt:  time.Now(),
-	}
+	now := time.Now()
+	imageURLs := make(map[string]string)
 
-	_, err = database.Images().InsertOne(ctx, imgDoc)
-	if err != nil {
-		http.Error(w, "Error saving image", http.StatusInternalServerError)
-		return
-	}
+	for _, v := range variants {
+		resized := resizeCover(img, v.width)
+		bounds := resized.Bounds()
 
-	// Retornar URL de servir a imagem
-	imageURL := "/api/v1/blog/images/" + imgDoc.ID.Hex()
+		var buf bytes.Buffer
+		if err := jpeg.Encode(&buf, resized, &jpeg.Options{Quality: v.quality}); err != nil {
+			http.Error(w, "Failed to process image", http.StatusInternalServerError)
+			return
+		}
+
+		base64Img := base64.StdEncoding.EncodeToString(buf.Bytes())
+
+		imgDoc := models.BlogImage{
+			ID:         primitive.NewObjectID(),
+			UploaderID: userID,
+			GroupID:    groupID,
+			SizeLabel:  v.label,
+			Width:      bounds.Dx(),
+			Data:       base64Img,
+			Size:       buf.Len(),
+			CreatedAt:  now,
+		}
+
+		_, err = database.Images().InsertOne(ctx, imgDoc)
+		if err != nil {
+			http.Error(w, "Error saving image", http.StatusInternalServerError)
+			return
+		}
+
+		imageURLs[v.label] = "/api/v1/blog/images/" + imgDoc.ID.Hex()
+	}
 
 	slog.Info("blog_image_uploaded",
-		"image_id", imgDoc.ID.Hex(),
+		"group_id", groupID,
 		"user_id", userID.Hex(),
 		"original_size", len(imgData),
-		"compressed_size", buf.Len(),
 	)
 
+	// Return group_id + individual URLs for each size + legacy url (card)
 	json.NewEncoder(w).Encode(map[string]string{
-		"url": imageURL,
+		"group_id": groupID,
+		"thumb":    imageURLs["thumb"],
+		"card":     imageURLs["card"],
+		"banner":   imageURLs["banner"],
+		"url":      imageURLs["card"], // backward compatible
 	})
 }
 
@@ -640,6 +667,57 @@ func ServeImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Headers de cache (7 dias) e content type
+	w.Header().Set("Content-Type", "image/jpeg")
+	w.Header().Set("Cache-Control", "public, max-age=604800, immutable")
+	w.Header().Set("Content-Length", strconv.Itoa(len(imgBytes)))
+	w.Write(imgBytes)
+}
+
+// ServeImageByGroup godoc
+// @Summary Servir imagem por group_id e tamanho
+// @Description Retorna a imagem em bytes (JPEG) pelo group_id. Use ?size=thumb|card|banner. Default: card.
+// @Tags blog
+// @Produce jpeg
+// @Param groupId path string true "Group ID da imagem"
+// @Param size query string false "Tamanho: thumb, card, banner" default(card)
+// @Success 200 {file} binary
+// @Failure 404 {string} string "Image not found"
+// @Router /blog/images/group/{groupId} [get]
+func ServeImageByGroup(w http.ResponseWriter, r *http.Request) {
+	groupID := r.PathValue("groupId")
+	if groupID == "" {
+		http.Error(w, "Group ID is required", http.StatusBadRequest)
+		return
+	}
+
+	sizeLabel := r.URL.Query().Get("size")
+	if sizeLabel == "" {
+		sizeLabel = "card"
+	}
+	if sizeLabel != "thumb" && sizeLabel != "card" && sizeLabel != "banner" {
+		http.Error(w, "Size must be thumb, card, or banner", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var imgDoc models.BlogImage
+	err := database.Images().FindOne(ctx, bson.M{
+		"group_id":   groupID,
+		"size_label": sizeLabel,
+	}).Decode(&imgDoc)
+	if err != nil {
+		http.Error(w, "Image not found", http.StatusNotFound)
+		return
+	}
+
+	imgBytes, err := base64.StdEncoding.DecodeString(imgDoc.Data)
+	if err != nil {
+		http.Error(w, "Error decoding image", http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.Header().Set("Cache-Control", "public, max-age=604800, immutable")
 	w.Header().Set("Content-Length", strconv.Itoa(len(imgBytes)))

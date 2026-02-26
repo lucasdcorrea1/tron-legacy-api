@@ -103,6 +103,14 @@ func EnsureIndexes() error {
 		return err
 	}
 
+	// images: compound index on {group_id, size_label} for multi-size image lookup
+	_, err = Images().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "group_id", Value: 1}, {Key: "size_label", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
 	log.Println("Engagement indexes ensured")
 	return nil
 }

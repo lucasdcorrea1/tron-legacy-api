@@ -15,6 +15,7 @@ type BlogPost struct {
 	Content         string             `json:"content" bson:"content"`
 	Excerpt         string             `json:"excerpt" bson:"excerpt"`
 	CoverImage      string             `json:"cover_image,omitempty" bson:"cover_image,omitempty"`
+	CoverImages     []string           `json:"cover_images,omitempty" bson:"cover_images,omitempty"` // array of group_ids for multi-image carousel
 	Category        string             `json:"category" bson:"category"`
 	Tags            []string           `json:"tags" bson:"tags"`
 	Status          string             `json:"status" bson:"status"` // "draft" or "published"
@@ -36,6 +37,7 @@ type CreatePostRequest struct {
 	Content         string   `json:"content"`
 	Excerpt         string   `json:"excerpt"`
 	CoverImage      string   `json:"cover_image,omitempty"`
+	CoverImages     []string `json:"cover_images,omitempty"` // array of group_ids
 	Category        string   `json:"category"`
 	Tags            []string `json:"tags,omitempty"`
 	Status          string   `json:"status"` // "draft" or "published"
@@ -49,6 +51,7 @@ type UpdatePostRequest struct {
 	Content         *string  `json:"content,omitempty"`
 	Excerpt         *string  `json:"excerpt,omitempty"`
 	CoverImage      *string  `json:"cover_image,omitempty"`
+	CoverImages     []string `json:"cover_images,omitempty"` // array of group_ids
 	Category        *string  `json:"category,omitempty"`
 	Tags            []string `json:"tags,omitempty"`
 	Status          *string  `json:"status,omitempty"`
@@ -73,9 +76,12 @@ type PostListResponse struct {
 
 // BlogImage represents an uploaded image stored in the images collection
 type BlogImage struct {
-	ID        primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	ID         primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	UploaderID primitive.ObjectID `json:"uploader_id" bson:"uploader_id"`
-	Data      string             `json:"-" bson:"data"`           // base64 data, never in JSON list responses
-	Size      int                `json:"size" bson:"size"`        // compressed size in bytes
-	CreatedAt time.Time          `json:"created_at" bson:"created_at"`
+	GroupID    string             `json:"group_id,omitempty" bson:"group_id,omitempty"`       // shared across size variants
+	SizeLabel  string             `json:"size_label,omitempty" bson:"size_label,omitempty"`   // "thumb", "card", or "banner"
+	Width      int                `json:"width,omitempty" bson:"width,omitempty"`             // image width in pixels
+	Data       string             `json:"-" bson:"data"`                                      // base64 data, never in JSON list responses
+	Size       int                `json:"size" bson:"size"`                                   // compressed size in bytes
+	CreatedAt  time.Time          `json:"created_at" bson:"created_at"`
 }
