@@ -9,11 +9,91 @@ definitions:
       user:
         $ref: '#/definitions/models.UserResponse'
     type: object
+  models.CreatePostRequest:
+    properties:
+      category:
+        type: string
+      content:
+        type: string
+      cover_image:
+        type: string
+      excerpt:
+        type: string
+      meta_description:
+        type: string
+      meta_title:
+        type: string
+      status:
+        description: '"draft" or "published"'
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+    type: object
   models.LoginRequest:
     properties:
       email:
         type: string
       password:
+        type: string
+    type: object
+  models.PostListResponse:
+    properties:
+      limit:
+        type: integer
+      page:
+        type: integer
+      posts:
+        items:
+          $ref: '#/definitions/models.PostResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  models.PostResponse:
+    properties:
+      author_avatar:
+        type: string
+      author_id:
+        type: string
+      author_name:
+        type: string
+      category:
+        type: string
+      content:
+        type: string
+      cover_image:
+        type: string
+      created_at:
+        type: string
+      excerpt:
+        type: string
+      id:
+        type: string
+      meta_description:
+        type: string
+      meta_title:
+        type: string
+      published_at:
+        type: string
+      reading_time:
+        description: estimated minutes
+        type: integer
+      slug:
+        type: string
+      status:
+        description: '"draft" or "published"'
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+      updated_at:
         type: string
     type: object
   models.Profile:
@@ -27,6 +107,8 @@ definitions:
       id:
         type: string
       name:
+        type: string
+      role:
         type: string
       settings:
         $ref: '#/definitions/models.ProfileSettings'
@@ -71,6 +153,29 @@ definitions:
         description: 'Hex color, default: #D4AF37 (gold)'
         type: string
     type: object
+  models.UpdatePostRequest:
+    properties:
+      category:
+        type: string
+      content:
+        type: string
+      cover_image:
+        type: string
+      excerpt:
+        type: string
+      meta_description:
+        type: string
+      meta_title:
+        type: string
+      status:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+    type: object
   models.UpdateProfileRequest:
     properties:
       avatar:
@@ -81,6 +186,39 @@ definitions:
         type: string
       settings:
         $ref: '#/definitions/models.ProfileSettings'
+    type: object
+  models.UpdateUserRoleRequest:
+    properties:
+      role:
+        type: string
+    type: object
+  models.UserListItem:
+    properties:
+      avatar:
+        type: string
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      role:
+        type: string
+    type: object
+  models.UserListResponse:
+    properties:
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      users:
+        items:
+          $ref: '#/definitions/models.UserListItem'
+        type: array
     type: object
   models.UserResponse:
     properties:
@@ -179,6 +317,267 @@ paths:
       summary: Registrar novo usuário
       tags:
       - auth
+  /blog/images/{id}:
+    get:
+      description: Retorna a imagem em bytes (JPEG). Público, com cache de 7 dias.
+      parameters:
+      - description: ID da imagem
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - image/jpeg
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "404":
+          description: Image not found
+          schema:
+            type: string
+      summary: Servir imagem do blog
+      tags:
+      - blog
+  /blog/posts:
+    get:
+      description: Retorna lista paginada de posts publicados com filtros opcionais
+      parameters:
+      - default: 1
+        description: Página
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Itens por página
+        in: query
+        name: limit
+        type: integer
+      - description: Filtrar por categoria
+        in: query
+        name: category
+        type: string
+      - description: Filtrar por tag
+        in: query
+        name: tag
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PostListResponse'
+      summary: Listar posts publicados
+      tags:
+      - blog
+    post:
+      consumes:
+      - application/json
+      description: Cria um novo post no blog. Requer role admin ou author.
+      parameters:
+      - description: Dados do post
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreatePostRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.PostResponse'
+        "400":
+          description: Invalid request body
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Criar novo post
+      tags:
+      - blog
+  /blog/posts/{id}:
+    delete:
+      description: Deleta um post. Autores só deletam seus posts, admins deletam qualquer
+        um.
+      parameters:
+      - description: ID do post
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Post deleted
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Post not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Deletar post
+      tags:
+      - blog
+    put:
+      consumes:
+      - application/json
+      description: Atualiza um post existente. Autores só editam seus posts, admins
+        editam qualquer um.
+      parameters:
+      - description: ID do post
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Dados para atualizar
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdatePostRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PostResponse'
+        "400":
+          description: Invalid request body
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Post not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar post
+      tags:
+      - blog
+  /blog/posts/{slug}:
+    get:
+      description: Retorna um post publicado pelo slug. Autores autenticados podem
+        ver seus rascunhos.
+      parameters:
+      - description: Slug do post
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PostResponse'
+        "404":
+          description: Post not found
+          schema:
+            type: string
+      summary: Buscar post por slug
+      tags:
+      - blog
+  /blog/posts/me:
+    get:
+      description: Retorna todos os posts do autor autenticado (rascunhos + publicados)
+      parameters:
+      - default: 1
+        description: Página
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Itens por página
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PostListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar meus posts
+      tags:
+      - blog
+  /blog/upload:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Faz upload de uma imagem, redimensiona para 800px de largura e
+        comprime. Salva na collection images e retorna URL de servir.
+      parameters:
+      - description: Imagem (PNG ou JPEG, max 5MB)
+        in: formData
+        name: image
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid image
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "413":
+          description: Image too large
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Upload de imagem para post
+      tags:
+      - blog
   /profile:
     get:
       consumes:
@@ -275,6 +674,94 @@ paths:
       summary: Upload de foto de perfil
       tags:
       - profile
+  /users:
+    get:
+      description: Retorna lista paginada de todos os usuários com perfil. Requer
+        role admin.
+      parameters:
+      - default: 1
+        description: Página
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Itens por página
+        in: query
+        name: limit
+        type: integer
+      - description: Buscar por nome ou email
+        in: query
+        name: search
+        type: string
+      - description: Filtrar por role (admin, author, user)
+        in: query
+        name: role
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UserListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar usuários
+      tags:
+      - users
+  /users/{id}/role:
+    put:
+      consumes:
+      - application/json
+      description: Altera a role de um usuário. Requer role admin.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Nova role
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateUserRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UserListItem'
+        "400":
+          description: Invalid request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: User not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Alterar role de um usuário
+      tags:
+      - users
 securityDefinitions:
   BearerAuth:
     description: 'Digite: Bearer {seu_token_aqui}'

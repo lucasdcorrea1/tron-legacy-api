@@ -50,3 +50,11 @@ func Users() *mongo.Collection {
 func Profiles() *mongo.Collection {
 	return DB.Collection("profiles")
 }
+
+func Posts() *mongo.Collection {
+	return DB.Collection("posts")
+}
+
+func Images() *mongo.Collection {
+	return DB.Collection("images")
+}

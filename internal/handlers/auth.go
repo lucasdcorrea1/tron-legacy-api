@@ -82,6 +82,7 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		ID:     primitive.NewObjectID(),
 		UserID: user.ID,
 		Name:   req.Name,
+		Role:   "user",
 		Settings: models.ProfileSettings{
 			Currency: "BRL",
 			Language: "pt-BR",

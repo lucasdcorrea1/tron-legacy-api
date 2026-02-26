@@ -23,6 +23,11 @@ type Metrics struct {
 	authErrors        int64
 	profileUpdates    int64
 	avatarUploads     int64
+
+	// Blog metrics
+	postsCreated int64
+	postsUpdated int64
+	postsDeleted int64
 }
 
 var metrics = &Metrics{
@@ -71,6 +76,24 @@ func IncProfileUpdate() {
 func IncAvatarUpload() {
 	metrics.mu.Lock()
 	metrics.avatarUploads++
+	metrics.mu.Unlock()
+}
+
+func IncPostCreated() {
+	metrics.mu.Lock()
+	metrics.postsCreated++
+	metrics.mu.Unlock()
+}
+
+func IncPostUpdated() {
+	metrics.mu.Lock()
+	metrics.postsUpdated++
+	metrics.mu.Unlock()
+}
+
+func IncPostDeleted() {
+	metrics.mu.Lock()
+	metrics.postsDeleted++
 	metrics.mu.Unlock()
 }
 
@@ -218,6 +241,19 @@ func PrometheusHandler() http.Handler {
 		w.Write([]byte("\n# HELP avatar_uploads_total Total number of avatar uploads\n"))
 		w.Write([]byte("# TYPE avatar_uploads_total counter\n"))
 		w.Write([]byte("avatar_uploads_total " + strconv.FormatInt(metrics.avatarUploads, 10) + "\n"))
+
+		// Blog metrics
+		w.Write([]byte("\n# HELP blog_posts_created_total Total number of blog posts created\n"))
+		w.Write([]byte("# TYPE blog_posts_created_total counter\n"))
+		w.Write([]byte("blog_posts_created_total " + strconv.FormatInt(metrics.postsCreated, 10) + "\n"))
+
+		w.Write([]byte("\n# HELP blog_posts_updated_total Total number of blog posts updated\n"))
+		w.Write([]byte("# TYPE blog_posts_updated_total counter\n"))
+		w.Write([]byte("blog_posts_updated_total " + strconv.FormatInt(metrics.postsUpdated, 10) + "\n"))
+
+		w.Write([]byte("\n# HELP blog_posts_deleted_total Total number of blog posts deleted\n"))
+		w.Write([]byte("# TYPE blog_posts_deleted_total counter\n"))
+		w.Write([]byte("blog_posts_deleted_total " + strconv.FormatInt(metrics.postsDeleted, 10) + "\n"))
 	})
 }
 

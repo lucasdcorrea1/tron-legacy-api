@@ -17,6 +17,12 @@ Backend API em Go com autenticacao JWT e gerenciamento de usuarios.
 docker-compose up -d
 ```
 
+### Rebuild (apos alteracoes no codigo)
+
+```bash
+docker-compose down --rmi local && docker-compose up -d --build
+```
+
 ## URLs
 
 | Servico | URL |

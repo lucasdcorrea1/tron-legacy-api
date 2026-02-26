@@ -22,6 +22,7 @@ type Profile struct {
 	Name      string             `json:"name" bson:"name"`
 	Avatar    string             `json:"avatar,omitempty" bson:"avatar,omitempty"`
 	Bio       string             `json:"bio,omitempty" bson:"bio,omitempty"`
+	Role      string             `json:"role" bson:"role"`
 	Settings  ProfileSettings    `json:"settings" bson:"settings"`
 	CreatedAt time.Time          `json:"created_at" bson:"created_at"`
 	UpdatedAt time.Time          `json:"updated_at" bson:"updated_at"`
@@ -122,6 +123,29 @@ type UserResponse struct {
 	ID        primitive.ObjectID `json:"id"`
 	Email     string             `json:"email"`
 	CreatedAt time.Time          `json:"created_at"`
+}
+
+// UserListItem represents a user with profile data for admin listing
+type UserListItem struct {
+	ID        primitive.ObjectID `json:"id"`
+	Email     string             `json:"email"`
+	Name      string             `json:"name"`
+	Avatar    string             `json:"avatar,omitempty"`
+	Role      string             `json:"role"`
+	CreatedAt time.Time          `json:"created_at"`
+}
+
+// UserListResponse is the paginated response for listing users
+type UserListResponse struct {
+	Users []UserListItem `json:"users"`
+	Total int64          `json:"total"`
+	Page  int            `json:"page"`
+	Limit int            `json:"limit"`
+}
+
+// UpdateUserRoleRequest is the request body for changing a user's role
+type UpdateUserRoleRequest struct {
+	Role string `json:"role"`
 }
 
 // UpdateProfileRequest is the request body for updating profile
