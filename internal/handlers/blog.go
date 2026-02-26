@@ -530,22 +530,23 @@ func UploadPostImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, header, err := r.FormFile("image")
+	file, _, err := r.FormFile("image")
 	if err != nil {
-		http.Error(w, "No image provided", http.StatusBadRequest)
+		http.Error(w, "No image provided. Use field name 'image'", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
 
-	contentType := header.Header.Get("Content-Type")
-	if contentType != "image/jpeg" && contentType != "image/png" {
-		http.Error(w, "Only JPEG and PNG images are allowed", http.StatusBadRequest)
-		return
-	}
-
 	imgData, err := io.ReadAll(file)
 	if err != nil {
 		http.Error(w, "Failed to read image", http.StatusBadRequest)
+		return
+	}
+
+	// Detect real content type from file bytes (first 512 bytes)
+	detectedType := http.DetectContentType(imgData)
+	if detectedType != "image/jpeg" && detectedType != "image/png" && detectedType != "image/webp" {
+		http.Error(w, "Only JPEG, PNG and WebP images are allowed", http.StatusBadRequest)
 		return
 	}
 
