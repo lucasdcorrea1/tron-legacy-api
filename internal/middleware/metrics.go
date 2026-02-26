@@ -28,6 +28,13 @@ type Metrics struct {
 	postsCreated int64
 	postsUpdated int64
 	postsDeleted int64
+
+	// Engagement metrics
+	postViews       int64
+	postLikes       int64
+	postUnlikes     int64
+	commentsCreated int64
+	commentsDeleted int64
 }
 
 var metrics = &Metrics{
@@ -94,6 +101,36 @@ func IncPostUpdated() {
 func IncPostDeleted() {
 	metrics.mu.Lock()
 	metrics.postsDeleted++
+	metrics.mu.Unlock()
+}
+
+func IncPostView() {
+	metrics.mu.Lock()
+	metrics.postViews++
+	metrics.mu.Unlock()
+}
+
+func IncPostLike() {
+	metrics.mu.Lock()
+	metrics.postLikes++
+	metrics.mu.Unlock()
+}
+
+func IncPostUnlike() {
+	metrics.mu.Lock()
+	metrics.postUnlikes++
+	metrics.mu.Unlock()
+}
+
+func IncCommentCreated() {
+	metrics.mu.Lock()
+	metrics.commentsCreated++
+	metrics.mu.Unlock()
+}
+
+func IncCommentDeleted() {
+	metrics.mu.Lock()
+	metrics.commentsDeleted++
 	metrics.mu.Unlock()
 }
 
@@ -254,6 +291,27 @@ func PrometheusHandler() http.Handler {
 		w.Write([]byte("\n# HELP blog_posts_deleted_total Total number of blog posts deleted\n"))
 		w.Write([]byte("# TYPE blog_posts_deleted_total counter\n"))
 		w.Write([]byte("blog_posts_deleted_total " + strconv.FormatInt(metrics.postsDeleted, 10) + "\n"))
+
+		// Engagement metrics
+		w.Write([]byte("\n# HELP post_views_total Total number of post views\n"))
+		w.Write([]byte("# TYPE post_views_total counter\n"))
+		w.Write([]byte("post_views_total " + strconv.FormatInt(metrics.postViews, 10) + "\n"))
+
+		w.Write([]byte("\n# HELP post_likes_total Total number of post likes\n"))
+		w.Write([]byte("# TYPE post_likes_total counter\n"))
+		w.Write([]byte("post_likes_total " + strconv.FormatInt(metrics.postLikes, 10) + "\n"))
+
+		w.Write([]byte("\n# HELP post_unlikes_total Total number of post unlikes\n"))
+		w.Write([]byte("# TYPE post_unlikes_total counter\n"))
+		w.Write([]byte("post_unlikes_total " + strconv.FormatInt(metrics.postUnlikes, 10) + "\n"))
+
+		w.Write([]byte("\n# HELP comments_created_total Total number of comments created\n"))
+		w.Write([]byte("# TYPE comments_created_total counter\n"))
+		w.Write([]byte("comments_created_total " + strconv.FormatInt(metrics.commentsCreated, 10) + "\n"))
+
+		w.Write([]byte("\n# HELP comments_deleted_total Total number of comments deleted\n"))
+		w.Write([]byte("# TYPE comments_deleted_total counter\n"))
+		w.Write([]byte("comments_deleted_total " + strconv.FormatInt(metrics.commentsDeleted, 10) + "\n"))
 	})
 }
 

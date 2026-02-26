@@ -21,6 +21,10 @@ type BlogPost struct {
 	MetaTitle       string             `json:"meta_title,omitempty" bson:"meta_title,omitempty"`
 	MetaDescription string             `json:"meta_description,omitempty" bson:"meta_description,omitempty"`
 	ReadingTime     int                `json:"reading_time" bson:"reading_time"` // estimated minutes
+	ViewCount       int64              `json:"view_count" bson:"view_count"`
+	UniqueViewCount int64              `json:"unique_view_count" bson:"unique_view_count"`
+	LikeCount       int64              `json:"like_count" bson:"like_count"`
+	CommentCount    int64              `json:"comment_count" bson:"comment_count"`
 	PublishedAt     *time.Time         `json:"published_at,omitempty" bson:"published_at,omitempty"`
 	CreatedAt       time.Time          `json:"created_at" bson:"created_at"`
 	UpdatedAt       time.Time          `json:"updated_at" bson:"updated_at"`

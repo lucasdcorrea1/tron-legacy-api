@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -57,4 +58,51 @@ func Posts() *mongo.Collection {
 
 func Images() *mongo.Collection {
 	return DB.Collection("images")
+}
+
+func PostViews() *mongo.Collection {
+	return DB.Collection("post_views")
+}
+
+func PostLikes() *mongo.Collection {
+	return DB.Collection("post_likes")
+}
+
+func PostComments() *mongo.Collection {
+	return DB.Collection("post_comments")
+}
+
+// EnsureIndexes creates required indexes for engagement collections
+func EnsureIndexes() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// post_views: unique index on {post_id, user_id} for dedup
+	_, err := PostViews().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "post_id", Value: 1}, {Key: "user_id", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	})
+	if err != nil {
+		return err
+	}
+
+	// post_likes: unique index on {post_id, user_id} to prevent duplicate likes
+	_, err = PostLikes().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "post_id", Value: 1}, {Key: "user_id", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	})
+	if err != nil {
+		return err
+	}
+
+	// post_comments: index on {post_id, created_at} for fast listing
+	_, err = PostComments().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "post_id", Value: 1}, {Key: "created_at", Value: -1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	log.Println("Engagement indexes ensured")
+	return nil
 }

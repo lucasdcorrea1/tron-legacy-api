@@ -35,6 +35,13 @@ func New() http.Handler {
 	mux.HandleFunc("GET /api/v1/blog/posts/{slug}", handlers.GetPostBySlug)
 	mux.HandleFunc("GET /api/v1/blog/images/{id}", handlers.ServeImage)
 
+	// Engagement routes (public)
+	mux.HandleFunc("GET /api/v1/blog/posts/{slug}/comments", handlers.ListComments)
+
+	// Engagement routes (optional auth — detect user if logged in)
+	mux.Handle("POST /api/v1/blog/posts/{slug}/view", middleware.OptionalAuth(http.HandlerFunc(handlers.RecordView)))
+	mux.Handle("GET /api/v1/blog/posts/{slug}/stats", middleware.OptionalAuth(http.HandlerFunc(handlers.GetPostStats)))
+
 	// ==========================================
 	// PROTECTED ROUTES (auth required)
 	// ==========================================
@@ -59,6 +66,11 @@ func New() http.Handler {
 	mux.Handle("PUT /api/v1/blog/posts/{id}", middleware.Auth(middleware.RequireRole("admin", "author")(http.HandlerFunc(handlers.UpdatePost))))
 	mux.Handle("DELETE /api/v1/blog/posts/{id}", middleware.Auth(middleware.RequireRole("admin", "author")(http.HandlerFunc(handlers.DeletePost))))
 	mux.Handle("POST /api/v1/blog/upload", middleware.Auth(middleware.RequireRole("admin", "author")(http.HandlerFunc(handlers.UploadPostImage))))
+
+	// Engagement routes (auth required)
+	mux.Handle("POST /api/v1/blog/posts/{slug}/like", middleware.Auth(http.HandlerFunc(handlers.ToggleLike)))
+	mux.Handle("POST /api/v1/blog/posts/{slug}/comments", middleware.Auth(http.HandlerFunc(handlers.CreateComment)))
+	mux.Handle("DELETE /api/v1/blog/posts/{slug}/comments/{id}", middleware.Auth(http.HandlerFunc(handlers.DeleteComment)))
 
 	// ==========================================
 	// GLOBAL MIDDLEWARES

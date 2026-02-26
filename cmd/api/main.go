@@ -31,6 +31,11 @@ func main() {
 	}
 	defer database.Disconnect()
 
+	// Ensure engagement indexes
+	if err := database.EnsureIndexes(); err != nil {
+		log.Printf("Warning: failed to ensure indexes: %v", err)
+	}
+
 	// Create router
 	r := router.New()
 
