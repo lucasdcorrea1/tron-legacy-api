@@ -23,6 +23,10 @@ func New() http.Handler {
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 
+	// SEO routes
+	mux.HandleFunc("GET /api/v1/sitemap.xml", handlers.Sitemap)
+	mux.HandleFunc("GET /robots.txt", handlers.RobotsTxt)
+
 	// Prometheus metrics endpoint
 	mux.Handle("GET /metrics", middleware.PrometheusHandler())
 
