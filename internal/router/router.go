@@ -73,6 +73,8 @@ func New() http.Handler {
 	mux.Handle("POST /api/v1/admin/email-marketing/templates/{id}/preview", middleware.Auth(middleware.RequireRole("admin")(http.HandlerFunc(handlers.PreviewEmailTemplate))))
 	mux.Handle("GET /api/v1/admin/email-marketing/audience", middleware.Auth(middleware.RequireRole("admin")(http.HandlerFunc(handlers.GetEmailAudience))))
 	mux.Handle("POST /api/v1/admin/email-marketing/send", middleware.Auth(middleware.RequireRole("admin")(http.HandlerFunc(handlers.SendMarketingEmail))))
+	mux.Handle("GET /api/v1/admin/email-marketing/subscribers", middleware.Auth(middleware.RequireRole("admin")(http.HandlerFunc(handlers.ListSubscribers))))
+	mux.Handle("DELETE /api/v1/admin/email-marketing/subscribers/{id}", middleware.Auth(middleware.RequireRole("admin")(http.HandlerFunc(handlers.DeleteSubscriber))))
 	mux.Handle("GET /api/v1/admin/email-marketing/broadcasts", middleware.Auth(middleware.RequireRole("admin")(http.HandlerFunc(handlers.ListBroadcasts))))
 	mux.Handle("GET /api/v1/admin/email-marketing/broadcasts/{id}", middleware.Auth(middleware.RequireRole("admin")(http.HandlerFunc(handlers.GetBroadcast))))
 

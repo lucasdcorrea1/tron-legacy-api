@@ -158,6 +158,91 @@ func GetEmailAudience(w http.ResponseWriter, r *http.Request) {
 	w.Write(body)
 }
 
+// ListSubscribers returns the list of contacts from the Resend audience.
+func ListSubscribers(w http.ResponseWriter, r *http.Request) {
+	cfg := config.Get()
+	if cfg.ResendAPIKey == "" || cfg.ResendAudienceID == "" {
+		http.Error(w, `{"message":"Resend não configurado"}`, http.StatusInternalServerError)
+		return
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	url := fmt.Sprintf("https://api.resend.com/audiences/%s/contacts", cfg.ResendAudienceID)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		slog.Error("email_marketing: failed to create subscribers request", "error", err)
+		http.Error(w, `{"message":"Erro interno"}`, http.StatusInternalServerError)
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+cfg.ResendAPIKey)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		slog.Error("email_marketing: subscribers API call failed", "error", err)
+		http.Error(w, `{"message":"Erro ao consultar inscritos"}`, http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		slog.Error("email_marketing: subscribers API error", "status", resp.StatusCode, "body", string(body))
+		http.Error(w, `{"message":"Erro na API do Resend"}`, http.StatusBadGateway)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(body)
+}
+
+// DeleteSubscriber removes a contact from the Resend audience.
+func DeleteSubscriber(w http.ResponseWriter, r *http.Request) {
+	cfg := config.Get()
+	if cfg.ResendAPIKey == "" || cfg.ResendAudienceID == "" {
+		http.Error(w, `{"message":"Resend não configurado"}`, http.StatusInternalServerError)
+		return
+	}
+
+	contactID := r.PathValue("id")
+	if contactID == "" {
+		http.Error(w, `{"message":"ID do contato é obrigatório"}`, http.StatusBadRequest)
+		return
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	url := fmt.Sprintf("https://api.resend.com/audiences/%s/contacts/%s", cfg.ResendAudienceID, contactID)
+
+	req, err := http.NewRequest("DELETE", url, nil)
+	if err != nil {
+		slog.Error("email_marketing: failed to create delete request", "error", err)
+		http.Error(w, `{"message":"Erro interno"}`, http.StatusInternalServerError)
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+cfg.ResendAPIKey)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		slog.Error("email_marketing: delete subscriber API call failed", "error", err)
+		http.Error(w, `{"message":"Erro ao remover inscrito"}`, http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		slog.Error("email_marketing: delete subscriber API error", "status", resp.StatusCode, "body", string(body))
+		http.Error(w, `{"message":"Erro ao remover inscrito"}`, http.StatusBadGateway)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message": "Inscrito removido com sucesso",
+	})
+}
+
 // SendMarketingEmail creates and sends a broadcast via Resend.
 func SendMarketingEmail(w http.ResponseWriter, r *http.Request) {
 	cfg := config.Get()
