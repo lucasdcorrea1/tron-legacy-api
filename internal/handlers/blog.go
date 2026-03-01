@@ -237,6 +237,16 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 	)
 
 	responses := enrichPostsWithAuthor(ctx, []models.BlogPost{post})
+
+	// Notify newsletter subscribers if published
+	if post.Status == "published" {
+		authorName := ""
+		if len(responses) > 0 {
+			authorName = responses[0].AuthorName
+		}
+		go NotifySubscribersNewPost(post.Title, post.Excerpt, post.Slug, authorName, post.Category, post.Tags)
+	}
+
 	w.WriteHeader(http.StatusCreated)
 	if len(responses) > 0 {
 		json.NewEncoder(w).Encode(responses[0])
@@ -370,6 +380,16 @@ func UpdatePost(w http.ResponseWriter, r *http.Request) {
 	)
 
 	responses := enrichPostsWithAuthor(ctx, []models.BlogPost{updated})
+
+	// Notify newsletter subscribers if transitioning to published (first time)
+	if req.Status != nil && *req.Status == "published" && post.PublishedAt == nil {
+		authorName := ""
+		if len(responses) > 0 {
+			authorName = responses[0].AuthorName
+		}
+		go NotifySubscribersNewPost(updated.Title, updated.Excerpt, updated.Slug, authorName, updated.Category, updated.Tags)
+	}
+
 	if len(responses) > 0 {
 		json.NewEncoder(w).Encode(responses[0])
 	} else {

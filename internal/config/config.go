@@ -8,11 +8,15 @@ import (
 )
 
 type Config struct {
-	MongoURI  string
-	Port      string
-	DBName    string
-	JWTSecret string
-	JWTExpiry time.Duration
+	MongoURI         string
+	Port             string
+	DBName           string
+	JWTSecret        string
+	JWTExpiry        time.Duration
+	ResendAPIKey     string
+	ResendAudienceID string
+	FromEmail        string
+	FrontendURL      string
 }
 
 var cfg *Config
@@ -27,11 +31,15 @@ func Load() *Config {
 	}
 
 	cfg = &Config{
-		MongoURI:  getEnv("MONGO_URI", "mongodb://localhost:27017"),
-		Port:      getEnv("PORT", "8080"),
-		DBName:    getEnv("DB_NAME", "tron_legacy"),
-		JWTSecret: getEnv("JWT_SECRET", "change-me-in-production"),
-		JWTExpiry: expiry,
+		MongoURI:         getEnv("MONGO_URI", "mongodb://localhost:27017"),
+		Port:             getEnv("PORT", "8080"),
+		DBName:           getEnv("DB_NAME", "tron_legacy"),
+		JWTSecret:        getEnv("JWT_SECRET", "change-me-in-production"),
+		JWTExpiry:        expiry,
+		ResendAPIKey:     getEnv("RESEND_API_KEY", ""),
+		ResendAudienceID: getEnv("RESEND_AUDIENCE_ID", ""),
+		FromEmail:        getEnv("FROM_EMAIL", "noreply@whodo.com.br"),
+		FrontendURL:      getEnv("FRONTEND_URL", "https://whodo.com.br"),
 	}
 
 	return cfg

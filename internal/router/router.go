@@ -33,12 +33,17 @@ func New() http.Handler {
 	// Auth routes (public)
 	mux.HandleFunc("POST /api/v1/auth/register", handlers.Register)
 	mux.HandleFunc("POST /api/v1/auth/login", handlers.Login)
+	mux.HandleFunc("POST /api/v1/auth/forgot-password", handlers.ForgotPassword)
+	mux.HandleFunc("POST /api/v1/auth/reset-password", handlers.ResetPassword)
 
 	// Blog routes (public)
 	mux.HandleFunc("GET /api/v1/blog/posts", handlers.ListPosts)
 	mux.HandleFunc("GET /api/v1/blog/posts/{slug}", handlers.GetPostBySlug)
 	mux.HandleFunc("GET /api/v1/blog/images/group/{groupId}", handlers.ServeImageByGroup)
 	mux.HandleFunc("GET /api/v1/blog/images/{id}", handlers.ServeImage)
+
+	// Newsletter (public)
+	mux.HandleFunc("POST /api/v1/newsletter/subscribe", handlers.SubscribeNewsletter)
 
 	// Engagement routes (public)
 	mux.HandleFunc("GET /api/v1/blog/posts/{slug}/comments", handlers.ListComments)
@@ -62,6 +67,14 @@ func New() http.Handler {
 	// Users routes (admin only)
 	mux.Handle("GET /api/v1/users", middleware.Auth(middleware.RequireRole("admin")(http.HandlerFunc(handlers.ListUsers))))
 	mux.Handle("PUT /api/v1/users/{id}/role", middleware.Auth(middleware.RequireRole("admin")(http.HandlerFunc(handlers.UpdateUserRole))))
+
+	// Email Marketing routes (admin only)
+	mux.Handle("GET /api/v1/admin/email-marketing/templates", middleware.Auth(middleware.RequireRole("admin")(http.HandlerFunc(handlers.ListEmailTemplates))))
+	mux.Handle("POST /api/v1/admin/email-marketing/templates/{id}/preview", middleware.Auth(middleware.RequireRole("admin")(http.HandlerFunc(handlers.PreviewEmailTemplate))))
+	mux.Handle("GET /api/v1/admin/email-marketing/audience", middleware.Auth(middleware.RequireRole("admin")(http.HandlerFunc(handlers.GetEmailAudience))))
+	mux.Handle("POST /api/v1/admin/email-marketing/send", middleware.Auth(middleware.RequireRole("admin")(http.HandlerFunc(handlers.SendMarketingEmail))))
+	mux.Handle("GET /api/v1/admin/email-marketing/broadcasts", middleware.Auth(middleware.RequireRole("admin")(http.HandlerFunc(handlers.ListBroadcasts))))
+	mux.Handle("GET /api/v1/admin/email-marketing/broadcasts/{id}", middleware.Auth(middleware.RequireRole("admin")(http.HandlerFunc(handlers.GetBroadcast))))
 
 	// Blog routes (auth required)
 	mux.Handle("GET /api/v1/blog/posts/me", middleware.Auth(http.HandlerFunc(handlers.MyPosts)))

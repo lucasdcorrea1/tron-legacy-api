@@ -72,6 +72,10 @@ func PostComments() *mongo.Collection {
 	return DB.Collection("post_comments")
 }
 
+func PasswordResets() *mongo.Collection {
+	return DB.Collection("password_resets")
+}
+
 // EnsureIndexes creates required indexes for engagement collections
 func EnsureIndexes() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -106,6 +110,23 @@ func EnsureIndexes() error {
 	// images: compound index on {group_id, size_label} for multi-size image lookup
 	_, err = Images().Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{{Key: "group_id", Value: 1}, {Key: "size_label", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// password_resets: TTL index to auto-delete expired tokens after 2 hours
+	_, err = PasswordResets().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "expires_at", Value: 1}},
+		Options: options.Index().SetExpireAfterSeconds(7200),
+	})
+	if err != nil {
+		return err
+	}
+
+	// password_resets: index on token for fast lookup
+	_, err = PasswordResets().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "token", Value: 1}},
 	})
 	if err != nil {
 		return err
