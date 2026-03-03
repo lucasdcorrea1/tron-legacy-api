@@ -38,7 +38,7 @@ func New() http.Handler {
 
 	// Blog routes (public)
 	mux.HandleFunc("GET /api/v1/blog/posts", handlers.ListPosts)
-	mux.HandleFunc("GET /api/v1/blog/posts/{slug}", handlers.GetPostBySlug)
+	mux.Handle("GET /api/v1/blog/posts/{slug}", middleware.OptionalAuth(http.HandlerFunc(handlers.GetPostBySlug)))
 	mux.HandleFunc("GET /api/v1/blog/images/group/{groupId}", handlers.ServeImageByGroup)
 	mux.HandleFunc("GET /api/v1/blog/images/{id}", handlers.ServeImage)
 
