@@ -63,6 +63,7 @@ func New() http.Handler {
 	mux.Handle("GET /api/v1/profile", middleware.Auth(http.HandlerFunc(handlers.GetProfile)))
 	mux.Handle("PUT /api/v1/profile", middleware.Auth(http.HandlerFunc(handlers.UpdateProfile)))
 	mux.Handle("POST /api/v1/profile/avatar", middleware.Auth(http.HandlerFunc(handlers.UploadAvatar)))
+	mux.Handle("POST /api/v1/profile/cover-image", middleware.Auth(http.HandlerFunc(handlers.UploadCoverImage)))
 
 	// Users routes (admin only)
 	mux.Handle("GET /api/v1/users", middleware.Auth(middleware.RequireRole("admin")(http.HandlerFunc(handlers.ListUsers))))

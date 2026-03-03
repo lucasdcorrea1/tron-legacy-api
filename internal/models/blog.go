@@ -61,9 +61,12 @@ type UpdatePostRequest struct {
 
 // PostResponse is the response for a single blog post with author info
 type PostResponse struct {
-	BlogPost    `json:",inline"`
-	AuthorName  string `json:"author_name"`
-	AuthorAvatar string `json:"author_avatar,omitempty"`
+	BlogPost         `json:",inline"`
+	AuthorName       string      `json:"author_name"`
+	AuthorAvatar     string      `json:"author_avatar,omitempty"`
+	AuthorBio        string      `json:"author_bio,omitempty"`
+	AuthorCoverImage string      `json:"author_cover_image,omitempty"`
+	AuthorSocial     SocialLinks `json:"author_social,omitempty"`
 }
 
 // PostListResponse is the paginated response for listing blog posts

@@ -15,17 +15,28 @@ type User struct {
 	CreatedAt    time.Time          `json:"created_at" bson:"created_at"`
 }
 
+// SocialLinks holds the user's social media URLs
+type SocialLinks struct {
+	Instagram string `json:"instagram,omitempty" bson:"instagram,omitempty"`
+	Twitter   string `json:"twitter,omitempty" bson:"twitter,omitempty"`
+	LinkedIn  string `json:"linkedin,omitempty" bson:"linkedin,omitempty"`
+	GitHub    string `json:"github,omitempty" bson:"github,omitempty"`
+	Website   string `json:"website,omitempty" bson:"website,omitempty"`
+}
+
 // Profile represents user profile data (separate from auth)
 type Profile struct {
-	ID        primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	UserID    primitive.ObjectID `json:"user_id" bson:"user_id"`
-	Name      string             `json:"name" bson:"name"`
-	Avatar    string             `json:"avatar,omitempty" bson:"avatar,omitempty"`
-	Bio       string             `json:"bio,omitempty" bson:"bio,omitempty"`
-	Role      string             `json:"role" bson:"role"`
-	Settings  ProfileSettings    `json:"settings" bson:"settings"`
-	CreatedAt time.Time          `json:"created_at" bson:"created_at"`
-	UpdatedAt time.Time          `json:"updated_at" bson:"updated_at"`
+	ID          primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	UserID      primitive.ObjectID `json:"user_id" bson:"user_id"`
+	Name        string             `json:"name" bson:"name"`
+	Avatar      string             `json:"avatar,omitempty" bson:"avatar,omitempty"`
+	Bio         string             `json:"bio,omitempty" bson:"bio,omitempty"`
+	CoverImage  string             `json:"cover_image,omitempty" bson:"cover_image,omitempty"`
+	SocialLinks SocialLinks        `json:"social_links,omitempty" bson:"social_links,omitempty"`
+	Role        string             `json:"role" bson:"role"`
+	Settings    ProfileSettings    `json:"settings" bson:"settings"`
+	CreatedAt   time.Time          `json:"created_at" bson:"created_at"`
+	UpdatedAt   time.Time          `json:"updated_at" bson:"updated_at"`
 }
 
 // ProfileSettings holds user preferences
@@ -150,10 +161,11 @@ type UpdateUserRoleRequest struct {
 
 // UpdateProfileRequest is the request body for updating profile
 type UpdateProfileRequest struct {
-	Name     string          `json:"name,omitempty"`
-	Avatar   string          `json:"avatar,omitempty"`
-	Bio      string          `json:"bio,omitempty"`
-	Settings ProfileSettings `json:"settings,omitempty"`
+	Name        string          `json:"name,omitempty"`
+	Avatar      string          `json:"avatar,omitempty"`
+	Bio         string          `json:"bio,omitempty"`
+	Settings    ProfileSettings `json:"settings,omitempty"`
+	SocialLinks *SocialLinks    `json:"social_links,omitempty"`
 }
 
 // UpdateThemeRequest is the request for updating theme settings

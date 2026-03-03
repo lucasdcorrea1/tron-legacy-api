@@ -117,6 +117,15 @@ func UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		setFields["settings.date_format"] = req.Settings.DateFormat
 	}
 
+	// Social links — pointer so we can distinguish "not sent" from "sent empty"
+	if req.SocialLinks != nil {
+		setFields["social_links.instagram"] = req.SocialLinks.Instagram
+		setFields["social_links.twitter"] = req.SocialLinks.Twitter
+		setFields["social_links.linkedin"] = req.SocialLinks.LinkedIn
+		setFields["social_links.github"] = req.SocialLinks.GitHub
+		setFields["social_links.website"] = req.SocialLinks.Website
+	}
+
 	result, err := database.Profiles().UpdateOne(ctx, bson.M{"user_id": userID}, update)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -392,5 +401,121 @@ func rotate90CCW(img image.Image, newW, newH int) image.Image {
 			dst.Set(y, w-1-x, img.At(x+bounds.Min.X, y+bounds.Min.Y))
 		}
 	}
+	return dst
+}
+
+// UploadCoverImage handles cover image upload for user profiles
+func UploadCoverImage(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r)
+	if userID == primitive.NilObjectID {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Limit 10MB
+	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
+
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		http.Error(w, "Image too large (max 10MB)", http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	file, header, err := r.FormFile("cover_image")
+	if err != nil {
+		http.Error(w, "No image provided", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	contentType := header.Header.Get("Content-Type")
+	if contentType != "image/jpeg" && contentType != "image/png" {
+		http.Error(w, "Only JPEG and PNG images are allowed", http.StatusBadRequest)
+		return
+	}
+
+	imgData, err := io.ReadAll(file)
+	if err != nil {
+		http.Error(w, "Failed to read image", http.StatusBadRequest)
+		return
+	}
+
+	img, _, err := image.Decode(bytes.NewReader(imgData))
+	if err != nil {
+		http.Error(w, "Invalid image format", http.StatusBadRequest)
+		return
+	}
+
+	img = applyExifOrientation(bytes.NewReader(imgData), img)
+
+	// Resize to 1200x400 banner (3:1 aspect ratio)
+	resized := resizeBanner(img, 1200, 400)
+
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, resized, &jpeg.Options{Quality: 85}); err != nil {
+		http.Error(w, "Failed to process image", http.StatusInternalServerError)
+		return
+	}
+
+	base64Img := "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(buf.Bytes())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	update := bson.M{
+		"$set": bson.M{
+			"cover_image": base64Img,
+			"updated_at":  time.Now(),
+		},
+	}
+
+	result, err := database.Profiles().UpdateOne(ctx, bson.M{"user_id": userID}, update)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if result.MatchedCount == 0 {
+		http.Error(w, "Profile not found", http.StatusNotFound)
+		return
+	}
+
+	var profile models.Profile
+	database.Profiles().FindOne(ctx, bson.M{"user_id": userID}).Decode(&profile)
+
+	middleware.IncCoverImageUpload()
+	slog.Info("cover_image_uploaded",
+		"user_id", userID.Hex(),
+		"size_bytes", len(base64Img),
+	)
+
+	json.NewEncoder(w).Encode(profile)
+}
+
+// resizeBanner crops and resizes an image to the target banner dimensions (3:1 aspect ratio)
+func resizeBanner(img image.Image, width, height int) image.Image {
+	bounds := img.Bounds()
+	srcW := bounds.Dx()
+	srcH := bounds.Dy()
+
+	// Target aspect ratio
+	targetRatio := float64(width) / float64(height)
+	srcRatio := float64(srcW) / float64(srcH)
+
+	var cropRect image.Rectangle
+	if srcRatio > targetRatio {
+		// Source is wider — crop sides
+		newW := int(float64(srcH) * targetRatio)
+		offset := (srcW - newW) / 2
+		cropRect = image.Rect(offset, 0, offset+newW, srcH)
+	} else {
+		// Source is taller — crop top/bottom
+		newH := int(float64(srcW) / targetRatio)
+		offset := (srcH - newH) / 2
+		cropRect = image.Rect(0, offset, srcW, offset+newH)
+	}
+
+	dst := image.NewRGBA(image.Rect(0, 0, width, height))
+	draw.CatmullRom.Scale(dst, dst.Bounds(), img, cropRect, draw.Over, nil)
+
 	return dst
 }

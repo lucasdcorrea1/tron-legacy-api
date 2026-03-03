@@ -799,6 +799,9 @@ func enrichPostsWithAuthor(ctx context.Context, posts []models.BlogPost) []model
 		if profile, ok := profileMap[post.AuthorID]; ok {
 			resp.AuthorName = profile.Name
 			resp.AuthorAvatar = profile.Avatar
+			resp.AuthorBio = profile.Bio
+			resp.AuthorCoverImage = profile.CoverImage
+			resp.AuthorSocial = profile.SocialLinks
 		}
 		responses[i] = resp
 	}

@@ -23,6 +23,7 @@ type Metrics struct {
 	authErrors        int64
 	profileUpdates    int64
 	avatarUploads     int64
+	coverImageUploads int64
 
 	// Blog metrics
 	postsCreated int64
@@ -83,6 +84,12 @@ func IncProfileUpdate() {
 func IncAvatarUpload() {
 	metrics.mu.Lock()
 	metrics.avatarUploads++
+	metrics.mu.Unlock()
+}
+
+func IncCoverImageUpload() {
+	metrics.mu.Lock()
+	metrics.coverImageUploads++
 	metrics.mu.Unlock()
 }
 
@@ -278,6 +285,10 @@ func PrometheusHandler() http.Handler {
 		w.Write([]byte("\n# HELP avatar_uploads_total Total number of avatar uploads\n"))
 		w.Write([]byte("# TYPE avatar_uploads_total counter\n"))
 		w.Write([]byte("avatar_uploads_total " + strconv.FormatInt(metrics.avatarUploads, 10) + "\n"))
+
+		w.Write([]byte("\n# HELP cover_image_uploads_total Total number of cover image uploads\n"))
+		w.Write([]byte("# TYPE cover_image_uploads_total counter\n"))
+		w.Write([]byte("cover_image_uploads_total " + strconv.FormatInt(metrics.coverImageUploads, 10) + "\n"))
 
 		// Blog metrics
 		w.Write([]byte("\n# HELP blog_posts_created_total Total number of blog posts created\n"))
