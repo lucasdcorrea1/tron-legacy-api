@@ -491,7 +491,14 @@ func MyPosts(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// Superuser/admin see all posts, others see only their own
 	filter := bson.M{"author_id": userID}
+	var profile models.Profile
+	if err := database.Profiles().FindOne(ctx, bson.M{"user_id": userID}).Decode(&profile); err == nil {
+		if profile.Role == "superuser" || profile.Role == "admin" {
+			filter = bson.M{}
+		}
+	}
 
 	total, err := database.Posts().CountDocuments(ctx, filter)
 	if err != nil {
