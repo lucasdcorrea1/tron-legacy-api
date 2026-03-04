@@ -303,11 +303,11 @@ func UpdatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check ownership: author can only edit own posts, admin can edit any
+	// Check ownership: author can only edit own posts, admin/superuser can edit any
 	if post.AuthorID != userID {
 		var profile models.Profile
 		err = database.Profiles().FindOne(ctx, bson.M{"user_id": userID}).Decode(&profile)
-		if err != nil || profile.Role != "admin" {
+		if err != nil || (profile.Role != "admin" && profile.Role != "superuser") {
 			http.Error(w, "Forbidden: you can only edit your own posts", http.StatusForbidden)
 			return
 		}
@@ -436,11 +436,11 @@ func DeletePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check ownership
+	// Check ownership: admin/superuser can delete any
 	if post.AuthorID != userID {
 		var profile models.Profile
 		err = database.Profiles().FindOne(ctx, bson.M{"user_id": userID}).Decode(&profile)
-		if err != nil || profile.Role != "admin" {
+		if err != nil || (profile.Role != "admin" && profile.Role != "superuser") {
 			http.Error(w, "Forbidden: you can only delete your own posts", http.StatusForbidden)
 			return
 		}

@@ -483,10 +483,10 @@ func DeleteComment(w http.ResponseWriter, r *http.Request) {
 	} else if post.AuthorID == userID {
 		canDelete = true
 	} else {
-		// Check if admin
+		// Check if admin or superuser
 		var profile models.Profile
 		err = database.Profiles().FindOne(ctx, bson.M{"user_id": userID}).Decode(&profile)
-		if err == nil && profile.Role == "admin" {
+		if err == nil && (profile.Role == "admin" || profile.Role == "superuser") {
 			canDelete = true
 		}
 	}

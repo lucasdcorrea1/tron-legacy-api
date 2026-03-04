@@ -162,8 +162,9 @@ func UpdateUserRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Role != "admin" && req.Role != "author" && req.Role != "user" {
-		http.Error(w, "Role must be 'admin', 'author' or 'user'", http.StatusBadRequest)
+	validRoles := map[string]bool{"superuser": true, "admin": true, "author": true, "user": true}
+	if !validRoles[req.Role] {
+		http.Error(w, "Role must be 'superuser', 'admin', 'author' or 'user'", http.StatusBadRequest)
 		return
 	}
 
