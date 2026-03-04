@@ -171,6 +171,27 @@ func UpdateUserRole(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// Only superuser can assign/remove superuser role
+	var callerProfile models.Profile
+	if err := database.Profiles().FindOne(ctx, bson.M{"user_id": adminID}).Decode(&callerProfile); err != nil {
+		http.Error(w, "Caller profile not found", http.StatusForbidden)
+		return
+	}
+
+	if req.Role == "superuser" && callerProfile.Role != "superuser" {
+		http.Error(w, "Only a superuser can assign the superuser role", http.StatusForbidden)
+		return
+	}
+
+	// Admin cannot change a superuser's role
+	var targetProfile models.Profile
+	if err := database.Profiles().FindOne(ctx, bson.M{"user_id": targetID}).Decode(&targetProfile); err == nil {
+		if targetProfile.Role == "superuser" && callerProfile.Role != "superuser" {
+			http.Error(w, "Only a superuser can change another superuser's role", http.StatusForbidden)
+			return
+		}
+	}
+
 	result, err := database.Profiles().UpdateOne(
 		ctx,
 		bson.M{"user_id": targetID},
