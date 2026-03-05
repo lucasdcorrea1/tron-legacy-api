@@ -125,12 +125,22 @@ func GetPostBySlug(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If draft, only the author can see it
+	// If draft, only the author or superuser can see it
 	if post.Status != "published" {
 		userID := middleware.GetUserID(r)
 		if userID == primitive.NilObjectID || userID != post.AuthorID {
-			http.Error(w, "Post not found", http.StatusNotFound)
-			return
+			// Check if superuser
+			allowed := false
+			if userID != primitive.NilObjectID {
+				var profile models.Profile
+				if err := database.Profiles().FindOne(ctx, bson.M{"user_id": userID}).Decode(&profile); err == nil {
+					allowed = profile.Role == "superuser"
+				}
+			}
+			if !allowed {
+				http.Error(w, "Post not found", http.StatusNotFound)
+				return
+			}
 		}
 	}
 
@@ -257,7 +267,7 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 
 // UpdatePost godoc
 // @Summary Atualizar post
-// @Description Atualiza um post existente. Autores só editam seus posts, admins editam qualquer um.
+// @Description Atualiza um post existente. Autores só editam seus posts, apenas superuser edita qualquer um.
 // @Tags blog
 // @Accept json
 // @Produce json
@@ -303,11 +313,11 @@ func UpdatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check ownership: author can only edit own posts, admin/superuser can edit any
+	// Only superuser can edit others' posts
 	if post.AuthorID != userID {
 		var profile models.Profile
 		err = database.Profiles().FindOne(ctx, bson.M{"user_id": userID}).Decode(&profile)
-		if err != nil || (profile.Role != "admin" && profile.Role != "superuser") {
+		if err != nil || profile.Role != "superuser" {
 			http.Error(w, "Forbidden: you can only edit your own posts", http.StatusForbidden)
 			return
 		}
@@ -399,7 +409,7 @@ func UpdatePost(w http.ResponseWriter, r *http.Request) {
 
 // DeletePost godoc
 // @Summary Deletar post
-// @Description Deleta um post. Autores só deletam seus posts, admins deletam qualquer um.
+// @Description Deleta um post. Autores só deletam seus posts, apenas superuser deleta qualquer um.
 // @Tags blog
 // @Produce json
 // @Security BearerAuth
@@ -436,11 +446,11 @@ func DeletePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check ownership: admin/superuser can delete any
+	// Only superuser can delete others' posts
 	if post.AuthorID != userID {
 		var profile models.Profile
 		err = database.Profiles().FindOne(ctx, bson.M{"user_id": userID}).Decode(&profile)
-		if err != nil || (profile.Role != "admin" && profile.Role != "superuser") {
+		if err != nil || profile.Role != "superuser" {
 			http.Error(w, "Forbidden: you can only delete your own posts", http.StatusForbidden)
 			return
 		}
@@ -491,11 +501,11 @@ func MyPosts(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Superuser/admin see all posts, others see only their own
+	// Only superuser sees all posts, everyone else sees only their own
 	filter := bson.M{"author_id": userID}
 	var profile models.Profile
 	if err := database.Profiles().FindOne(ctx, bson.M{"user_id": userID}).Decode(&profile); err == nil {
-		if profile.Role == "superuser" || profile.Role == "admin" {
+		if profile.Role == "superuser" {
 			filter = bson.M{}
 		}
 	}
