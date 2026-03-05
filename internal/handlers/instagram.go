@@ -1,0 +1,710 @@
+package handlers
+
+import (
+	"bytes"
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"image"
+	"image/jpeg"
+	_ "image/png"
+	"io"
+	"log/slog"
+	"net/http"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/tron-legacy/api/internal/config"
+	"github.com/tron-legacy/api/internal/database"
+	"github.com/tron-legacy/api/internal/middleware"
+	"github.com/tron-legacy/api/internal/models"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"golang.org/x/image/draw"
+)
+
+// GetInstagramConfig returns whether Instagram is configured
+func GetInstagramConfig(w http.ResponseWriter, r *http.Request) {
+	cfg := config.Get()
+	configured := cfg.InstagramAccountID != "" && cfg.InstagramToken != ""
+
+	accountID := ""
+	if cfg.InstagramAccountID != "" {
+		// Mask the account ID: show first 4 and last 4 chars
+		id := cfg.InstagramAccountID
+		if len(id) > 8 {
+			accountID = id[:4] + "****" + id[len(id)-4:]
+		} else {
+			accountID = "****"
+		}
+	}
+
+	json.NewEncoder(w).Encode(models.InstagramConfigResponse{
+		Configured: configured,
+		AccountID:  accountID,
+	})
+}
+
+// CreateInstagramSchedule creates a new scheduled Instagram post
+func CreateInstagramSchedule(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r)
+	if userID == primitive.NilObjectID {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req models.CreateInstagramScheduleRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if len(req.ImageIDs) == 0 {
+		http.Error(w, "At least one image is required", http.StatusBadRequest)
+		return
+	}
+
+	if req.MediaType != "image" && req.MediaType != "carousel" {
+		http.Error(w, "media_type must be 'image' or 'carousel'", http.StatusBadRequest)
+		return
+	}
+
+	if req.MediaType == "image" && len(req.ImageIDs) > 1 {
+		http.Error(w, "image type allows only one image; use 'carousel' for multiple", http.StatusBadRequest)
+		return
+	}
+
+	if req.MediaType == "carousel" && len(req.ImageIDs) < 2 {
+		http.Error(w, "carousel requires at least 2 images", http.StatusBadRequest)
+		return
+	}
+
+	if len(req.Caption) > 2200 {
+		http.Error(w, "Caption must be 2200 characters or less", http.StatusBadRequest)
+		return
+	}
+
+	scheduledAt, err := time.Parse(time.RFC3339, req.ScheduledAt)
+	if err != nil {
+		http.Error(w, "scheduled_at must be a valid ISO 8601 date", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Verify all images exist
+	for _, imgID := range req.ImageIDs {
+		oid, err := primitive.ObjectIDFromHex(imgID)
+		if err != nil {
+			http.Error(w, "Invalid image ID: "+imgID, http.StatusBadRequest)
+			return
+		}
+		count, err := database.Images().CountDocuments(ctx, bson.M{"_id": oid})
+		if err != nil || count == 0 {
+			http.Error(w, "Image not found: "+imgID, http.StatusBadRequest)
+			return
+		}
+	}
+
+	now := time.Now()
+	schedule := models.InstagramSchedule{
+		ID:          primitive.NewObjectID(),
+		UserID:      userID,
+		Caption:     req.Caption,
+		MediaType:   req.MediaType,
+		ImageIDs:    req.ImageIDs,
+		ScheduledAt: scheduledAt,
+		Status:      "scheduled",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	_, err = database.InstagramSchedules().InsertOne(ctx, schedule)
+	if err != nil {
+		http.Error(w, "Error creating schedule", http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("instagram_schedule_created",
+		"schedule_id", schedule.ID.Hex(),
+		"user_id", userID.Hex(),
+		"scheduled_at", scheduledAt.Format(time.RFC3339),
+	)
+
+	resp := buildScheduleResponse(schedule)
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(resp)
+}
+
+// ListInstagramSchedules lists scheduled posts with pagination and filtering
+func ListInstagramSchedules(w http.ResponseWriter, r *http.Request) {
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	if limit < 1 || limit > 50 {
+		limit = 10
+	}
+
+	filter := bson.M{}
+	if status := r.URL.Query().Get("status"); status != "" {
+		filter["status"] = status
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	total, err := database.InstagramSchedules().CountDocuments(ctx, filter)
+	if err != nil {
+		http.Error(w, "Error counting schedules", http.StatusInternalServerError)
+		return
+	}
+
+	skip := int64((page - 1) * limit)
+	opts := options.Find().
+		SetSort(bson.D{{Key: "scheduled_at", Value: -1}}).
+		SetSkip(skip).
+		SetLimit(int64(limit))
+
+	cursor, err := database.InstagramSchedules().Find(ctx, filter, opts)
+	if err != nil {
+		http.Error(w, "Error fetching schedules", http.StatusInternalServerError)
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var schedules []models.InstagramSchedule
+	if err := cursor.All(ctx, &schedules); err != nil {
+		http.Error(w, "Error decoding schedules", http.StatusInternalServerError)
+		return
+	}
+
+	responses := make([]models.InstagramScheduleResponse, len(schedules))
+	for i, s := range schedules {
+		responses[i] = buildScheduleResponse(s)
+	}
+
+	json.NewEncoder(w).Encode(models.InstagramScheduleListResponse{
+		Schedules: responses,
+		Total:     total,
+		Page:      page,
+		Limit:     limit,
+	})
+}
+
+// GetInstagramSchedule returns a single schedule by ID
+func GetInstagramSchedule(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	oid, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		http.Error(w, "Invalid schedule ID", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var schedule models.InstagramSchedule
+	err = database.InstagramSchedules().FindOne(ctx, bson.M{"_id": oid}).Decode(&schedule)
+	if err != nil {
+		http.Error(w, "Schedule not found", http.StatusNotFound)
+		return
+	}
+
+	json.NewEncoder(w).Encode(buildScheduleResponse(schedule))
+}
+
+// UpdateInstagramSchedule updates a scheduled post (only if status is "scheduled")
+func UpdateInstagramSchedule(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	oid, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		http.Error(w, "Invalid schedule ID", http.StatusBadRequest)
+		return
+	}
+
+	var req models.UpdateInstagramScheduleRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var schedule models.InstagramSchedule
+	err = database.InstagramSchedules().FindOne(ctx, bson.M{"_id": oid}).Decode(&schedule)
+	if err != nil {
+		http.Error(w, "Schedule not found", http.StatusNotFound)
+		return
+	}
+
+	if schedule.Status != "scheduled" && schedule.Status != "failed" {
+		http.Error(w, "Can only edit scheduled or failed posts", http.StatusBadRequest)
+		return
+	}
+
+	update := bson.M{"$set": bson.M{"updated_at": time.Now()}}
+	setFields := update["$set"].(bson.M)
+
+	if req.Caption != nil {
+		if len(*req.Caption) > 2200 {
+			http.Error(w, "Caption must be 2200 characters or less", http.StatusBadRequest)
+			return
+		}
+		setFields["caption"] = *req.Caption
+	}
+
+	if req.MediaType != nil {
+		if *req.MediaType != "image" && *req.MediaType != "carousel" {
+			http.Error(w, "media_type must be 'image' or 'carousel'", http.StatusBadRequest)
+			return
+		}
+		setFields["media_type"] = *req.MediaType
+	}
+
+	if req.ImageIDs != nil {
+		if len(req.ImageIDs) == 0 {
+			http.Error(w, "At least one image is required", http.StatusBadRequest)
+			return
+		}
+		// Verify images exist
+		for _, imgID := range req.ImageIDs {
+			imgOID, err := primitive.ObjectIDFromHex(imgID)
+			if err != nil {
+				http.Error(w, "Invalid image ID: "+imgID, http.StatusBadRequest)
+				return
+			}
+			count, err := database.Images().CountDocuments(ctx, bson.M{"_id": imgOID})
+			if err != nil || count == 0 {
+				http.Error(w, "Image not found: "+imgID, http.StatusBadRequest)
+				return
+			}
+		}
+		setFields["image_ids"] = req.ImageIDs
+	}
+
+	if req.ScheduledAt != nil {
+		scheduledAt, err := time.Parse(time.RFC3339, *req.ScheduledAt)
+		if err != nil {
+			http.Error(w, "scheduled_at must be a valid ISO 8601 date", http.StatusBadRequest)
+			return
+		}
+		setFields["scheduled_at"] = scheduledAt
+	}
+
+	// If re-scheduling a failed post, reset status
+	if schedule.Status == "failed" {
+		setFields["status"] = "scheduled"
+		setFields["error_message"] = ""
+	}
+
+	_, err = database.InstagramSchedules().UpdateOne(ctx, bson.M{"_id": oid}, update)
+	if err != nil {
+		http.Error(w, "Error updating schedule", http.StatusInternalServerError)
+		return
+	}
+
+	var updated models.InstagramSchedule
+	database.InstagramSchedules().FindOne(ctx, bson.M{"_id": oid}).Decode(&updated)
+
+	slog.Info("instagram_schedule_updated",
+		"schedule_id", oid.Hex(),
+	)
+
+	json.NewEncoder(w).Encode(buildScheduleResponse(updated))
+}
+
+// DeleteInstagramSchedule deletes a scheduled post
+func DeleteInstagramSchedule(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	oid, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		http.Error(w, "Invalid schedule ID", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var schedule models.InstagramSchedule
+	err = database.InstagramSchedules().FindOne(ctx, bson.M{"_id": oid}).Decode(&schedule)
+	if err != nil {
+		http.Error(w, "Schedule not found", http.StatusNotFound)
+		return
+	}
+
+	if schedule.Status == "publishing" {
+		http.Error(w, "Cannot delete a post that is currently publishing", http.StatusBadRequest)
+		return
+	}
+
+	_, err = database.InstagramSchedules().DeleteOne(ctx, bson.M{"_id": oid})
+	if err != nil {
+		http.Error(w, "Error deleting schedule", http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("instagram_schedule_deleted",
+		"schedule_id", oid.Hex(),
+	)
+
+	json.NewEncoder(w).Encode(map[string]string{"message": "Schedule deleted"})
+}
+
+// UploadInstagramImage uploads an image for Instagram, resized to max 1080x1080
+func UploadInstagramImage(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r)
+	if userID == primitive.NilObjectID {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 10<<20) // 10MB limit
+
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		http.Error(w, "Image too large (max 10MB)", http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	file, _, err := r.FormFile("image")
+	if err != nil {
+		http.Error(w, "No image provided. Use field name 'image'", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	imgData, err := io.ReadAll(file)
+	if err != nil {
+		http.Error(w, "Failed to read image", http.StatusBadRequest)
+		return
+	}
+
+	detectedType := http.DetectContentType(imgData)
+	if detectedType != "image/jpeg" && detectedType != "image/png" && detectedType != "image/webp" {
+		http.Error(w, "Only JPEG, PNG and WebP images are allowed", http.StatusBadRequest)
+		return
+	}
+
+	img, _, err := image.Decode(bytes.NewReader(imgData))
+	if err != nil {
+		http.Error(w, "Invalid image format", http.StatusBadRequest)
+		return
+	}
+
+	// Resize to max 1080px width (Instagram requirement)
+	resized := resizeInstagramImage(img, 1080)
+	bounds := resized.Bounds()
+
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, resized, &jpeg.Options{Quality: 85}); err != nil {
+		http.Error(w, "Failed to process image", http.StatusInternalServerError)
+		return
+	}
+
+	base64Img := base64.StdEncoding.EncodeToString(buf.Bytes())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	imgDoc := models.BlogImage{
+		ID:         primitive.NewObjectID(),
+		UploaderID: userID,
+		Width:      bounds.Dx(),
+		Data:       base64Img,
+		Size:       buf.Len(),
+		CreatedAt:  time.Now(),
+	}
+
+	_, err = database.Images().InsertOne(ctx, imgDoc)
+	if err != nil {
+		http.Error(w, "Error saving image", http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("instagram_image_uploaded",
+		"image_id", imgDoc.ID.Hex(),
+		"user_id", userID.Hex(),
+		"width", bounds.Dx(),
+		"height", bounds.Dy(),
+	)
+
+	json.NewEncoder(w).Encode(map[string]string{
+		"id":  imgDoc.ID.Hex(),
+		"url": "/api/v1/blog/images/" + imgDoc.ID.Hex(),
+	})
+}
+
+// resizeInstagramImage resizes image to max width maintaining aspect ratio
+func resizeInstagramImage(img image.Image, maxWidth int) image.Image {
+	bounds := img.Bounds()
+	srcW := bounds.Dx()
+	srcH := bounds.Dy()
+
+	if srcW <= maxWidth {
+		return img
+	}
+
+	newW := maxWidth
+	newH := int(float64(srcH) * float64(maxWidth) / float64(srcW))
+
+	dst := image.NewRGBA(image.Rect(0, 0, newW, newH))
+	draw.CatmullRom.Scale(dst, dst.Bounds(), img, bounds, draw.Over, nil)
+
+	return dst
+}
+
+// getPublicImageURL builds the public URL for serving an image
+func getPublicImageURL(imageID string) string {
+	// Use RENDER_EXTERNAL_URL (deployed) or FRONTEND_URL as base
+	baseURL := os.Getenv("RENDER_EXTERNAL_URL")
+	if baseURL == "" {
+		baseURL = config.Get().FrontendURL
+	}
+	// Remove trailing slash
+	baseURL = strings.TrimRight(baseURL, "/")
+	return baseURL + "/api/v1/blog/images/" + imageID
+}
+
+// publishToInstagram publishes a scheduled post to Instagram via Graph API
+func publishToInstagram(schedule models.InstagramSchedule) (string, error) {
+	cfg := config.Get()
+	if cfg.InstagramAccountID == "" || cfg.InstagramToken == "" {
+		return "", fmt.Errorf("instagram not configured")
+	}
+
+	accountID := cfg.InstagramAccountID
+	token := cfg.InstagramToken
+
+	if schedule.MediaType == "image" {
+		// Single image post
+		imageURL := getPublicImageURL(schedule.ImageIDs[0])
+
+		// Step 1: Create media container
+		containerID, err := createMediaContainer(accountID, token, imageURL, schedule.Caption, false)
+		if err != nil {
+			return "", fmt.Errorf("create container: %w", err)
+		}
+
+		// Step 2: Publish
+		mediaID, err := publishMediaContainer(accountID, token, containerID)
+		if err != nil {
+			return "", fmt.Errorf("publish: %w", err)
+		}
+
+		return mediaID, nil
+	}
+
+	// Carousel post
+	var childIDs []string
+	for _, imgID := range schedule.ImageIDs {
+		imageURL := getPublicImageURL(imgID)
+		childID, err := createMediaContainer(accountID, token, imageURL, "", true)
+		if err != nil {
+			return "", fmt.Errorf("create carousel item: %w", err)
+		}
+		childIDs = append(childIDs, childID)
+	}
+
+	// Create carousel container
+	carouselID, err := createCarouselContainer(accountID, token, childIDs, schedule.Caption)
+	if err != nil {
+		return "", fmt.Errorf("create carousel container: %w", err)
+	}
+
+	// Publish carousel
+	mediaID, err := publishMediaContainer(accountID, token, carouselID)
+	if err != nil {
+		return "", fmt.Errorf("publish carousel: %w", err)
+	}
+
+	return mediaID, nil
+}
+
+// createMediaContainer creates an IG media container for a single image or carousel item
+func createMediaContainer(accountID, token, imageURL, caption string, isCarouselItem bool) (string, error) {
+	apiURL := fmt.Sprintf("https://graph.instagram.com/v21.0/%s/media", accountID)
+
+	params := map[string]string{
+		"image_url":    imageURL,
+		"access_token": token,
+	}
+
+	if isCarouselItem {
+		params["is_carousel_item"] = "true"
+	} else {
+		params["caption"] = caption
+	}
+
+	body, _ := json.Marshal(params)
+	resp, err := http.Post(apiURL, "application/json", bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+
+	if errMsg, ok := result["error"]; ok {
+		return "", fmt.Errorf("instagram API error: %v", errMsg)
+	}
+
+	id, ok := result["id"].(string)
+	if !ok {
+		return "", fmt.Errorf("unexpected response: no id field")
+	}
+
+	return id, nil
+}
+
+// createCarouselContainer creates a carousel container with children
+func createCarouselContainer(accountID, token string, childIDs []string, caption string) (string, error) {
+	apiURL := fmt.Sprintf("https://graph.instagram.com/v21.0/%s/media", accountID)
+
+	params := map[string]string{
+		"media_type":   "CAROUSEL",
+		"children":     strings.Join(childIDs, ","),
+		"caption":      caption,
+		"access_token": token,
+	}
+
+	body, _ := json.Marshal(params)
+	resp, err := http.Post(apiURL, "application/json", bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+
+	if errMsg, ok := result["error"]; ok {
+		return "", fmt.Errorf("instagram API error: %v", errMsg)
+	}
+
+	id, ok := result["id"].(string)
+	if !ok {
+		return "", fmt.Errorf("unexpected response: no id field")
+	}
+
+	return id, nil
+}
+
+// publishMediaContainer publishes a created media container
+func publishMediaContainer(accountID, token, creationID string) (string, error) {
+	apiURL := fmt.Sprintf("https://graph.instagram.com/v21.0/%s/media_publish", accountID)
+
+	params := map[string]string{
+		"creation_id":  creationID,
+		"access_token": token,
+	}
+
+	body, _ := json.Marshal(params)
+	resp, err := http.Post(apiURL, "application/json", bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+
+	if errMsg, ok := result["error"]; ok {
+		return "", fmt.Errorf("instagram API error: %v", errMsg)
+	}
+
+	id, ok := result["id"].(string)
+	if !ok {
+		return "", fmt.Errorf("unexpected response: no id field")
+	}
+
+	return id, nil
+}
+
+// ProcessScheduledInstagramPosts checks for due posts and publishes them
+func ProcessScheduledInstagramPosts() {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	now := time.Now()
+	filter := bson.M{
+		"status":       "scheduled",
+		"scheduled_at": bson.M{"$lte": now},
+	}
+
+	cursor, err := database.InstagramSchedules().Find(ctx, filter)
+	if err != nil {
+		slog.Error("instagram_scheduler_query_error", "error", err)
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var schedules []models.InstagramSchedule
+	if err := cursor.All(ctx, &schedules); err != nil {
+		slog.Error("instagram_scheduler_decode_error", "error", err)
+		return
+	}
+
+	for _, schedule := range schedules {
+		// Set status to publishing
+		database.InstagramSchedules().UpdateOne(ctx, bson.M{"_id": schedule.ID}, bson.M{
+			"$set": bson.M{"status": "publishing", "updated_at": time.Now()},
+		})
+
+		mediaID, err := publishToInstagram(schedule)
+		if err != nil {
+			slog.Error("instagram_publish_failed",
+				"schedule_id", schedule.ID.Hex(),
+				"error", err,
+			)
+			database.InstagramSchedules().UpdateOne(ctx, bson.M{"_id": schedule.ID}, bson.M{
+				"$set": bson.M{
+					"status":        "failed",
+					"error_message": err.Error(),
+					"updated_at":    time.Now(),
+				},
+			})
+			continue
+		}
+
+		database.InstagramSchedules().UpdateOne(ctx, bson.M{"_id": schedule.ID}, bson.M{
+			"$set": bson.M{
+				"status":      "published",
+				"ig_media_id": mediaID,
+				"updated_at":  time.Now(),
+			},
+		})
+
+		middleware.IncInstagramPublished()
+
+		slog.Info("instagram_published",
+			"schedule_id", schedule.ID.Hex(),
+			"ig_media_id", mediaID,
+		)
+	}
+}
+
+// buildScheduleResponse creates a response with resolved image URLs
+func buildScheduleResponse(s models.InstagramSchedule) models.InstagramScheduleResponse {
+	imageURLs := make([]string, len(s.ImageIDs))
+	for i, id := range s.ImageIDs {
+		imageURLs[i] = "/api/v1/blog/images/" + id
+	}
+	return models.InstagramScheduleResponse{
+		InstagramSchedule: s,
+		ImageURLs:         imageURLs,
+	}
+}

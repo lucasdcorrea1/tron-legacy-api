@@ -8,6 +8,7 @@ import (
 
 	"github.com/tron-legacy/api/internal/config"
 	"github.com/tron-legacy/api/internal/database"
+	"github.com/tron-legacy/api/internal/handlers"
 	"github.com/tron-legacy/api/internal/router"
 
 	_ "github.com/tron-legacy/api/docs"
@@ -46,6 +47,9 @@ func main() {
 		go keepAlive(selfURL + "/api/v1/health")
 	}
 
+	// Start Instagram scheduler
+	go instagramScheduler()
+
 	// Start server
 	addr := ":" + cfg.Port
 	log.Printf("Server starting on http://localhost%s", addr)
@@ -54,6 +58,20 @@ func main() {
 
 	if err := http.ListenAndServe(addr, r); err != nil {
 		log.Fatalf("Server failed: %v", err)
+	}
+}
+
+// instagramScheduler runs every minute and processes due scheduled Instagram posts.
+func instagramScheduler() {
+	// Wait for server to start
+	time.Sleep(15 * time.Second)
+	log.Println("Instagram scheduler started (1 min interval)")
+
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		handlers.ProcessScheduledInstagramPosts()
 	}
 }
 
