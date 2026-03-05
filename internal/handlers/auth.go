@@ -2,6 +2,9 @@ package handlers
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -99,17 +102,25 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate JWT token
+	// Generate JWT access token
 	token, err := generateToken(user)
 	if err != nil {
 		http.Error(w, "Error generating token", http.StatusInternalServerError)
 		return
 	}
 
+	// Generate refresh token
+	rawRefresh, err := generateRefreshToken(ctx, user.ID)
+	if err != nil {
+		http.Error(w, "Error generating refresh token", http.StatusInternalServerError)
+		return
+	}
+
 	response := models.AuthResponse{
-		User:    user.ToResponse(),
-		Profile: profile,
-		Token:   token,
+		User:         user.ToResponse(),
+		Profile:      profile,
+		Token:        token,
+		RefreshToken: rawRefresh,
 	}
 
 	// Increment metrics and log event
@@ -183,17 +194,25 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate JWT token
+	// Generate JWT access token
 	token, err := generateToken(user)
 	if err != nil {
 		http.Error(w, "Error generating token", http.StatusInternalServerError)
 		return
 	}
 
+	// Generate refresh token
+	rawRefresh, err := generateRefreshToken(ctx, user.ID)
+	if err != nil {
+		http.Error(w, "Error generating refresh token", http.StatusInternalServerError)
+		return
+	}
+
 	response := models.AuthResponse{
-		User:    user.ToResponse(),
-		Profile: profile,
-		Token:   token,
+		User:         user.ToResponse(),
+		Profile:      profile,
+		Token:        token,
+		RefreshToken: rawRefresh,
 	}
 
 	// Increment metrics and log event
@@ -251,7 +270,7 @@ func Me(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// generateToken creates a JWT token for the user
+// generateToken creates a JWT access token for the user
 func generateToken(user models.User) (string, error) {
 	cfg := config.Get()
 
@@ -259,7 +278,7 @@ func generateToken(user models.User) (string, error) {
 		UserID: user.ID.Hex(),
 		Email:  user.Email,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(cfg.JWTExpiry)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(cfg.AccessTokenExpiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Issuer:    "tron-legacy-api",
 		},
@@ -267,4 +286,128 @@ func generateToken(user models.User) (string, error) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(cfg.JWTSecret))
+}
+
+// generateRefreshToken creates a random opaque refresh token, stores its SHA-256 hash
+// in the database, and returns the raw token to be sent to the client.
+func generateRefreshToken(ctx context.Context, userID primitive.ObjectID) (string, error) {
+	cfg := config.Get()
+
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	rawHex := hex.EncodeToString(raw)
+
+	hash := sha256.Sum256([]byte(rawHex))
+	tokenHash := hex.EncodeToString(hash[:])
+
+	rt := models.RefreshToken{
+		ID:        primitive.NewObjectID(),
+		UserID:    userID,
+		TokenHash: tokenHash,
+		ExpiresAt: time.Now().Add(cfg.RefreshTokenExpiry),
+		CreatedAt: time.Now(),
+	}
+
+	if _, err := database.RefreshTokens().InsertOne(ctx, rt); err != nil {
+		return "", err
+	}
+
+	return rawHex, nil
+}
+
+// hashToken returns the hex-encoded SHA-256 hash of a raw token string.
+func hashToken(raw string) string {
+	h := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(h[:])
+}
+
+type refreshRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+// Refresh exchanges a valid refresh token for a new access + refresh token pair.
+func Refresh(w http.ResponseWriter, r *http.Request) {
+	var req refreshRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.RefreshToken == "" {
+		http.Error(w, "refresh_token is required", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	tokenHash := hashToken(req.RefreshToken)
+
+	// Find the refresh token in DB
+	var stored models.RefreshToken
+	err := database.RefreshTokens().FindOne(ctx, bson.M{
+		"token_hash": tokenHash,
+		"expires_at": bson.M{"$gt": time.Now()},
+	}).Decode(&stored)
+	if err != nil {
+		http.Error(w, "Invalid or expired refresh token", http.StatusUnauthorized)
+		return
+	}
+
+	// Delete the consumed token (rotation)
+	database.RefreshTokens().DeleteOne(ctx, bson.M{"_id": stored.ID})
+
+	// Look up user
+	var user models.User
+	if err := database.Users().FindOne(ctx, bson.M{"_id": stored.UserID}).Decode(&user); err != nil {
+		http.Error(w, "User not found", http.StatusUnauthorized)
+		return
+	}
+
+	// Look up profile
+	var profile models.Profile
+	if err := database.Profiles().FindOne(ctx, bson.M{"user_id": stored.UserID}).Decode(&profile); err != nil {
+		http.Error(w, "Profile not found", http.StatusInternalServerError)
+		return
+	}
+
+	// Issue new access token
+	accessToken, err := generateToken(user)
+	if err != nil {
+		http.Error(w, "Error generating token", http.StatusInternalServerError)
+		return
+	}
+
+	// Issue new refresh token
+	newRefresh, err := generateRefreshToken(ctx, stored.UserID)
+	if err != nil {
+		http.Error(w, "Error generating refresh token", http.StatusInternalServerError)
+		return
+	}
+
+	response := models.AuthResponse{
+		User:         user.ToResponse(),
+		Profile:      profile,
+		Token:        accessToken,
+		RefreshToken: newRefresh,
+	}
+
+	slog.Info("token_refreshed", "user_id", stored.UserID.Hex())
+	json.NewEncoder(w).Encode(response)
+}
+
+type logoutRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+// Logout invalidates the provided refresh token.
+func Logout(w http.ResponseWriter, r *http.Request) {
+	var req logoutRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err == nil && req.RefreshToken != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		tokenHash := hashToken(req.RefreshToken)
+		database.RefreshTokens().DeleteOne(ctx, bson.M{"token_hash": tokenHash})
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Logged out"})
 }

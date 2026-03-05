@@ -122,11 +122,21 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
+// RefreshToken represents a hashed refresh token stored in the DB
+type RefreshToken struct {
+	ID        primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	UserID    primitive.ObjectID `json:"user_id" bson:"user_id"`
+	TokenHash string             `json:"-" bson:"token_hash"`
+	ExpiresAt time.Time          `json:"expires_at" bson:"expires_at"`
+	CreatedAt time.Time          `json:"created_at" bson:"created_at"`
+}
+
 // AuthResponse is the response for register/login
 type AuthResponse struct {
-	User    UserResponse `json:"user"`
-	Profile Profile      `json:"profile"`
-	Token   string       `json:"token"`
+	User         UserResponse `json:"user"`
+	Profile      Profile      `json:"profile"`
+	Token        string       `json:"token"`
+	RefreshToken string       `json:"refresh_token,omitempty"`
 }
 
 // UserResponse is the public user data (without password)

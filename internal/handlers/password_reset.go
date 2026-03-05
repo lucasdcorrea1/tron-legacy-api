@@ -237,6 +237,9 @@ func ResetPassword(w http.ResponseWriter, r *http.Request) {
 		bson.M{"$set": bson.M{"used": true}},
 	)
 
+	// Invalidate all refresh tokens for this user (force re-login on all devices)
+	database.RefreshTokens().DeleteMany(ctx, bson.M{"user_id": resetToken.UserID})
+
 	slog.Info("reset_password: password updated", "user_id", resetToken.UserID.Hex())
 	writeJSON(w, http.StatusOK, map[string]string{"message": "Senha atualizada com sucesso!"})
 }

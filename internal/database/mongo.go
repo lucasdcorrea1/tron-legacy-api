@@ -76,6 +76,14 @@ func PasswordResets() *mongo.Collection {
 	return DB.Collection("password_resets")
 }
 
+func InstagramSchedules() *mongo.Collection {
+	return DB.Collection("instagram_schedules")
+}
+
+func RefreshTokens() *mongo.Collection {
+	return DB.Collection("refresh_tokens")
+}
+
 // EnsureIndexes creates required indexes for engagement collections
 func EnsureIndexes() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -127,6 +135,47 @@ func EnsureIndexes() error {
 	// password_resets: index on token for fast lookup
 	_, err = PasswordResets().Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{{Key: "token", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// instagram_schedules: compound index on {status, scheduled_at} for scheduler queries
+	_, err = InstagramSchedules().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "status", Value: 1}, {Key: "scheduled_at", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// instagram_schedules: index on {user_id, created_at} for user listing
+	_, err = InstagramSchedules().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "created_at", Value: -1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// refresh_tokens: TTL index on expires_at (auto-delete expired tokens)
+	_, err = RefreshTokens().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "expires_at", Value: 1}},
+		Options: options.Index().SetExpireAfterSeconds(0),
+	})
+	if err != nil {
+		return err
+	}
+
+	// refresh_tokens: index on token_hash for fast lookup
+	_, err = RefreshTokens().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "token_hash", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// refresh_tokens: index on user_id for cleanup on logout/password reset
+	_, err = RefreshTokens().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "user_id", Value: 1}},
 	})
 	if err != nil {
 		return err

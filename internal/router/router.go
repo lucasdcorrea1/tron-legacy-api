@@ -35,6 +35,8 @@ func New() http.Handler {
 	mux.HandleFunc("POST /api/v1/auth/login", handlers.Login)
 	mux.HandleFunc("POST /api/v1/auth/forgot-password", handlers.ForgotPassword)
 	mux.HandleFunc("POST /api/v1/auth/reset-password", handlers.ResetPassword)
+	mux.HandleFunc("POST /api/v1/auth/refresh", handlers.Refresh)
+	mux.HandleFunc("POST /api/v1/auth/logout", handlers.Logout)
 
 	// Blog routes (public)
 	mux.HandleFunc("GET /api/v1/blog/posts", handlers.ListPosts)
@@ -78,6 +80,15 @@ func New() http.Handler {
 	mux.Handle("DELETE /api/v1/admin/email-marketing/subscribers/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.DeleteSubscriber))))
 	mux.Handle("GET /api/v1/admin/email-marketing/broadcasts", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.ListBroadcasts))))
 	mux.Handle("GET /api/v1/admin/email-marketing/broadcasts/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.GetBroadcast))))
+
+	// Instagram scheduling routes (superuser only)
+	mux.Handle("GET /api/v1/admin/instagram/config", middleware.Auth(middleware.RequireRole("superuser")(http.HandlerFunc(handlers.GetInstagramConfig))))
+	mux.Handle("GET /api/v1/admin/instagram/schedules", middleware.Auth(middleware.RequireRole("superuser")(http.HandlerFunc(handlers.ListInstagramSchedules))))
+	mux.Handle("POST /api/v1/admin/instagram/schedules", middleware.Auth(middleware.RequireRole("superuser")(http.HandlerFunc(handlers.CreateInstagramSchedule))))
+	mux.Handle("GET /api/v1/admin/instagram/schedules/{id}", middleware.Auth(middleware.RequireRole("superuser")(http.HandlerFunc(handlers.GetInstagramSchedule))))
+	mux.Handle("PUT /api/v1/admin/instagram/schedules/{id}", middleware.Auth(middleware.RequireRole("superuser")(http.HandlerFunc(handlers.UpdateInstagramSchedule))))
+	mux.Handle("DELETE /api/v1/admin/instagram/schedules/{id}", middleware.Auth(middleware.RequireRole("superuser")(http.HandlerFunc(handlers.DeleteInstagramSchedule))))
+	mux.Handle("POST /api/v1/admin/instagram/upload", middleware.Auth(middleware.RequireRole("superuser")(http.HandlerFunc(handlers.UploadInstagramImage))))
 
 	// Blog routes (auth required)
 	mux.Handle("GET /api/v1/blog/posts/me", middleware.Auth(http.HandlerFunc(handlers.MyPosts)))
