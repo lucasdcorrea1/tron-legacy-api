@@ -47,12 +47,20 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 	return n, err
 }
 
+// Flush implements http.Flusher so SSE streaming works through middleware.
+func (rw *responseWriter) Flush() {
+	if f, ok := rw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 func Logger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
-		// Skip health check and metrics endpoints from verbose logging
-		if r.URL.Path == "/api/v1/health" || r.URL.Path == "/metrics" {
+		// Skip health check, metrics, and SSE endpoints from verbose logging
+		if r.URL.Path == "/api/v1/health" || r.URL.Path == "/metrics" ||
+			r.URL.Path == "/api/v1/admin/instagram/autoreply/live" {
 			next.ServeHTTP(w, r)
 			return
 		}

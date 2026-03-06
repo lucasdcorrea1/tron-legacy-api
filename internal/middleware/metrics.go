@@ -160,8 +160,8 @@ func IncInstagramPublished() {
 // MetricsMiddleware collects HTTP metrics
 func MetricsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Skip metrics endpoint itself
-		if r.URL.Path == "/metrics" {
+		// Skip metrics endpoint and SSE streams
+		if r.URL.Path == "/metrics" || r.URL.Path == "/api/v1/admin/instagram/autoreply/live" {
 			next.ServeHTTP(w, r)
 			return
 		}
