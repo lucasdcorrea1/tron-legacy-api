@@ -137,6 +137,66 @@ func RecordView(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"message": "View recorded"})
 }
 
+// RecordCTAClick godoc
+// @Summary Registrar clique em CTA
+// @Description Registra um clique em um banner CTA dentro do post.
+// @Tags engagement
+// @Accept json
+// @Produce json
+// @Param slug path string true "Slug do post"
+// @Param request body models.CTAClickRequest true "CTA identifier"
+// @Success 200 {object} map[string]string
+// @Failure 404 {string} string "Post not found"
+// @Router /blog/posts/{slug}/cta-click [post]
+func RecordCTAClick(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("slug")
+	if slug == "" {
+		http.Error(w, "Slug is required", http.StatusBadRequest)
+		return
+	}
+
+	var req models.CTAClickRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.CTA == "" {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	post := resolvePostBySlug(ctx, slug)
+	if post == nil {
+		http.Error(w, "Post not found", http.StatusNotFound)
+		return
+	}
+
+	// Insert click record
+	click := models.CTAClick{
+		ID:        primitive.NewObjectID(),
+		PostID:    post.ID,
+		CTA:       req.CTA,
+		IP:        r.Header.Get("X-Forwarded-For"),
+		CreatedAt: time.Now(),
+	}
+	database.CTAClicks().InsertOne(ctx, click)
+
+	// Increment counter on post
+	database.Posts().UpdateOne(ctx,
+		bson.M{"_id": post.ID},
+		bson.M{"$inc": bson.M{"cta_click_count": 1}},
+	)
+
+	middleware.IncCTAClick()
+
+	slog.Info("cta_click_recorded",
+		"post_id", post.ID.Hex(),
+		"slug", slug,
+		"cta", req.CTA,
+	)
+
+	json.NewEncoder(w).Encode(map[string]string{"message": "Click recorded"})
+}
+
 // GetPostStats godoc
 // @Summary Estatísticas de engajamento do post
 // @Description Retorna view_count, unique_view_count, like_count, comment_count e se o usuário deu like
@@ -167,6 +227,7 @@ func GetPostStats(w http.ResponseWriter, r *http.Request) {
 		UniqueViewCount: post.UniqueViewCount,
 		LikeCount:       post.LikeCount,
 		CommentCount:    post.CommentCount,
+		CTAClickCount:   post.CTAClickCount,
 	}
 
 	// Check if current user liked this post

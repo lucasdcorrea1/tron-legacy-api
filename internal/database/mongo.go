@@ -80,8 +80,28 @@ func InstagramSchedules() *mongo.Collection {
 	return DB.Collection("instagram_schedules")
 }
 
+func InstagramConfigs() *mongo.Collection {
+	return DB.Collection("instagram_configs")
+}
+
 func RefreshTokens() *mongo.Collection {
 	return DB.Collection("refresh_tokens")
+}
+
+func AutoReplyRules() *mongo.Collection {
+	return DB.Collection("auto_reply_rules")
+}
+
+func AutoReplyLogs() *mongo.Collection {
+	return DB.Collection("auto_reply_logs")
+}
+
+func InstagramLeads() *mongo.Collection {
+	return DB.Collection("instagram_leads")
+}
+
+func CTAClicks() *mongo.Collection {
+	return DB.Collection("cta_clicks")
 }
 
 // EnsureIndexes creates required indexes for engagement collections
@@ -176,6 +196,82 @@ func EnsureIndexes() error {
 	// refresh_tokens: index on user_id for cleanup on logout/password reset
 	_, err = RefreshTokens().Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{{Key: "user_id", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// instagram_configs: unique index on user_id (one config per user)
+	_, err = InstagramConfigs().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "user_id", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	})
+	if err != nil {
+		return err
+	}
+
+	// auto_reply_rules: compound index on {user_id, active} for active rules lookup
+	_, err = AutoReplyRules().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "active", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// auto_reply_logs: compound index on {sender_ig_id, created_at} for cooldown checks
+	_, err = AutoReplyLogs().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "sender_ig_id", Value: 1}, {Key: "created_at", Value: -1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// auto_reply_logs: TTL index — auto-delete logs after 90 days
+	_, err = AutoReplyLogs().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "created_at", Value: 1}},
+		Options: options.Index().SetExpireAfterSeconds(90 * 24 * 3600),
+	})
+	if err != nil {
+		return err
+	}
+
+	// instagram_leads: unique index on sender_ig_id
+	_, err = InstagramLeads().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "sender_ig_id", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	})
+	if err != nil {
+		return err
+	}
+
+	// instagram_leads: index on last_interaction for sorting
+	_, err = InstagramLeads().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "last_interaction", Value: -1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// instagram_leads: index on tags for filtering
+	_, err = InstagramLeads().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "tags", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// cta_clicks: index on {post_id, cta, created_at} for stats queries
+	_, err = CTAClicks().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "post_id", Value: 1}, {Key: "cta", Value: 1}, {Key: "created_at", Value: -1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// cta_clicks: TTL index — auto-delete after 180 days
+	_, err = CTAClicks().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "created_at", Value: 1}},
+		Options: options.Index().SetExpireAfterSeconds(180 * 24 * 3600),
 	})
 	if err != nil {
 		return err

@@ -18,35 +18,309 @@ import (
 	"time"
 
 	"github.com/tron-legacy/api/internal/config"
+	"github.com/tron-legacy/api/internal/crypto"
 	"github.com/tron-legacy/api/internal/database"
 	"github.com/tron-legacy/api/internal/middleware"
 	"github.com/tron-legacy/api/internal/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/image/draw"
 )
 
-// GetInstagramConfig returns whether Instagram is configured
-func GetInstagramConfig(w http.ResponseWriter, r *http.Request) {
-	cfg := config.Get()
-	configured := cfg.InstagramAccountID != "" && cfg.InstagramToken != ""
+// instagramCredentials holds resolved Instagram API credentials.
+type instagramCredentials struct {
+	AccountID string
+	Token     string
+	Source    string // "user" or "env"
+}
 
-	accountID := ""
-	if cfg.InstagramAccountID != "" {
-		// Mask the account ID: show first 4 and last 4 chars
-		id := cfg.InstagramAccountID
-		if len(id) > 8 {
-			accountID = id[:4] + "****" + id[len(id)-4:]
-		} else {
-			accountID = "****"
+// getInstagramCredentials resolves credentials: DB per-user config first, then env vars fallback.
+func getInstagramCredentials(ctx context.Context, userID primitive.ObjectID) (*instagramCredentials, error) {
+	// Try per-user config from DB
+	if userID != primitive.NilObjectID && crypto.Available() {
+		var cfg models.InstagramConfig
+		err := database.InstagramConfigs().FindOne(ctx, bson.M{"user_id": userID}).Decode(&cfg)
+		if err == nil {
+			token, err := crypto.Decrypt(cfg.AccessTokenEnc)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decrypt token: %w", err)
+			}
+			return &instagramCredentials{
+				AccountID: cfg.InstagramAccountID,
+				Token:     token,
+				Source:    "user",
+			}, nil
+		}
+		if err != mongo.ErrNoDocuments {
+			return nil, fmt.Errorf("db error: %w", err)
 		}
 	}
 
-	json.NewEncoder(w).Encode(models.InstagramConfigResponse{
-		Configured: configured,
-		AccountID:  accountID,
+	// Fallback to env vars
+	envCfg := config.Get()
+	if envCfg.InstagramAccountID != "" && envCfg.InstagramToken != "" {
+		return &instagramCredentials{
+			AccountID: envCfg.InstagramAccountID,
+			Token:     envCfg.InstagramToken,
+			Source:    "env",
+		}, nil
+	}
+
+	return nil, nil // not configured
+}
+
+// maskAccountID masks the middle of an account ID string.
+func maskAccountID(id string) string {
+	if len(id) > 8 {
+		return id[:4] + "****" + id[len(id)-4:]
+	}
+	return "****"
+}
+
+// GetInstagramConfig returns whether Instagram is configured (DB first, then env fallback)
+func GetInstagramConfig(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	creds, err := getInstagramCredentials(ctx, userID)
+	if err != nil {
+		slog.Error("get_instagram_config_error", "error", err)
+		http.Error(w, "Error checking config", http.StatusInternalServerError)
+		return
+	}
+
+	resp := models.InstagramConfigResponse{
+		Configured: creds != nil,
+	}
+	if creds != nil {
+		resp.AccountID = maskAccountID(creds.AccountID)
+		resp.Source = creds.Source
+	}
+
+	json.NewEncoder(w).Encode(resp)
+}
+
+// SaveInstagramConfig saves or updates per-user Instagram credentials
+func SaveInstagramConfig(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r)
+	if userID == primitive.NilObjectID {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if !crypto.Available() {
+		http.Error(w, "Encryption not configured (ENCRYPTION_KEY missing)", http.StatusServiceUnavailable)
+		return
+	}
+
+	var req models.SaveInstagramConfigRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.InstagramAccountID == "" || req.AccessToken == "" {
+		http.Error(w, "instagram_account_id and access_token are required", http.StatusBadRequest)
+		return
+	}
+
+	encToken, err := crypto.Encrypt(req.AccessToken)
+	if err != nil {
+		slog.Error("encrypt_token_error", "error", err)
+		http.Error(w, "Error encrypting token", http.StatusInternalServerError)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	now := time.Now()
+	filter := bson.M{"user_id": userID}
+	update := bson.M{
+		"$set": bson.M{
+			"instagram_account_id": req.InstagramAccountID,
+			"access_token_enc":     encToken,
+			"updated_at":           now,
+		},
+		"$setOnInsert": bson.M{
+			"user_id":    userID,
+			"created_at": now,
+		},
+	}
+	opts := options.Update().SetUpsert(true)
+
+	_, err = database.InstagramConfigs().UpdateOne(ctx, filter, update, opts)
+	if err != nil {
+		slog.Error("save_instagram_config_error", "error", err)
+		http.Error(w, "Error saving config", http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("instagram_config_saved",
+		"user_id", userID.Hex(),
+		"account_id", maskAccountID(req.InstagramAccountID),
+	)
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":    "Config saved",
+		"account_id": maskAccountID(req.InstagramAccountID),
 	})
+}
+
+// DeleteInstagramConfig removes per-user Instagram credentials
+func DeleteInstagramConfig(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r)
+	if userID == primitive.NilObjectID {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	result, err := database.InstagramConfigs().DeleteOne(ctx, bson.M{"user_id": userID})
+	if err != nil {
+		slog.Error("delete_instagram_config_error", "error", err)
+		http.Error(w, "Error deleting config", http.StatusInternalServerError)
+		return
+	}
+
+	if result.DeletedCount == 0 {
+		http.Error(w, "No config found", http.StatusNotFound)
+		return
+	}
+
+	slog.Info("instagram_config_deleted", "user_id", userID.Hex())
+
+	json.NewEncoder(w).Encode(map[string]string{"message": "Config deleted"})
+}
+
+// TestInstagramConnection verifies credentials by fetching account info (read-only, no publish)
+func TestInstagramConnection(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r)
+	if userID == primitive.NilObjectID {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	creds, err := getInstagramCredentials(ctx, userID)
+	if err != nil {
+		http.Error(w, "Error getting credentials: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if creds == nil {
+		http.Error(w, "Instagram not configured", http.StatusBadRequest)
+		return
+	}
+
+	// GET account info — read-only, safe
+	apiURL := fmt.Sprintf(
+		"https://graph.instagram.com/v21.0/%s?fields=id,username,name,profile_picture_url,followers_count,media_count&access_token=%s",
+		creds.AccountID, creds.Token,
+	)
+
+	resp, err := http.Get(apiURL)
+	if err != nil {
+		http.Error(w, "Failed to reach Instagram API: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		http.Error(w, "Failed to parse Instagram response", http.StatusBadGateway)
+		return
+	}
+
+	if errObj, ok := result["error"]; ok {
+		slog.Error("instagram_test_failed", "error", errObj)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   errObj,
+			"source":  creds.Source,
+		})
+		return
+	}
+
+	slog.Info("instagram_test_success",
+		"user_id", userID.Hex(),
+		"ig_username", result["username"],
+	)
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":             true,
+		"source":              creds.Source,
+		"id":                  result["id"],
+		"username":            result["username"],
+		"name":                result["name"],
+		"profile_picture_url": result["profile_picture_url"],
+		"followers_count":     result["followers_count"],
+		"media_count":         result["media_count"],
+	})
+}
+
+// GetInstagramFeed fetches recent media from the Instagram account (read-only)
+func GetInstagramFeed(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r)
+	if userID == primitive.NilObjectID {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	creds, err := getInstagramCredentials(ctx, userID)
+	if err != nil {
+		http.Error(w, "Error getting credentials: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if creds == nil {
+		http.Error(w, "Instagram not configured", http.StatusBadRequest)
+		return
+	}
+
+	limit := r.URL.Query().Get("limit")
+	if limit == "" {
+		limit = "12"
+	}
+
+	apiURL := fmt.Sprintf(
+		"https://graph.instagram.com/v21.0/%s/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count&limit=%s&access_token=%s",
+		creds.AccountID, limit, creds.Token,
+	)
+
+	resp, err := http.Get(apiURL)
+	if err != nil {
+		http.Error(w, "Failed to reach Instagram API: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		http.Error(w, "Failed to parse Instagram response", http.StatusBadGateway)
+		return
+	}
+
+	if errObj, ok := result["error"]; ok {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   errObj,
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(result)
 }
 
 // CreateInstagramSchedule creates a new scheduled Instagram post
@@ -474,13 +748,19 @@ func getPublicImageURL(imageID string) string {
 
 // publishToInstagram publishes a scheduled post to Instagram via Graph API
 func publishToInstagram(schedule models.InstagramSchedule) (string, error) {
-	cfg := config.Get()
-	if cfg.InstagramAccountID == "" || cfg.InstagramToken == "" {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	creds, err := getInstagramCredentials(ctx, schedule.UserID)
+	if err != nil {
+		return "", fmt.Errorf("get credentials: %w", err)
+	}
+	if creds == nil {
 		return "", fmt.Errorf("instagram not configured")
 	}
 
-	accountID := cfg.InstagramAccountID
-	token := cfg.InstagramToken
+	accountID := creds.AccountID
+	token := creds.Token
 
 	if schedule.MediaType == "image" {
 		// Single image post

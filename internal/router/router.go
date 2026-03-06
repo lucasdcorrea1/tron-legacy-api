@@ -47,11 +47,16 @@ func New() http.Handler {
 	// Newsletter (public)
 	mux.HandleFunc("POST /api/v1/newsletter/subscribe", handlers.SubscribeNewsletter)
 
+	// Instagram webhooks (public — called by Meta)
+	mux.HandleFunc("GET /api/v1/webhooks/instagram", handlers.WebhookVerify)
+	mux.HandleFunc("POST /api/v1/webhooks/instagram", handlers.WebhookEvent)
+
 	// Engagement routes (public)
 	mux.HandleFunc("GET /api/v1/blog/posts/{slug}/comments", handlers.ListComments)
 
 	// Engagement routes (optional auth — detect user if logged in)
 	mux.Handle("POST /api/v1/blog/posts/{slug}/view", middleware.OptionalAuth(http.HandlerFunc(handlers.RecordView)))
+	mux.HandleFunc("POST /api/v1/blog/posts/{slug}/cta-click", handlers.RecordCTAClick)
 	mux.Handle("GET /api/v1/blog/posts/{slug}/stats", middleware.OptionalAuth(http.HandlerFunc(handlers.GetPostStats)))
 
 	// ==========================================
@@ -81,14 +86,42 @@ func New() http.Handler {
 	mux.Handle("GET /api/v1/admin/email-marketing/broadcasts", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.ListBroadcasts))))
 	mux.Handle("GET /api/v1/admin/email-marketing/broadcasts/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.GetBroadcast))))
 
-	// Instagram scheduling routes (superuser only)
-	mux.Handle("GET /api/v1/admin/instagram/config", middleware.Auth(middleware.RequireRole("superuser")(http.HandlerFunc(handlers.GetInstagramConfig))))
-	mux.Handle("GET /api/v1/admin/instagram/schedules", middleware.Auth(middleware.RequireRole("superuser")(http.HandlerFunc(handlers.ListInstagramSchedules))))
-	mux.Handle("POST /api/v1/admin/instagram/schedules", middleware.Auth(middleware.RequireRole("superuser")(http.HandlerFunc(handlers.CreateInstagramSchedule))))
-	mux.Handle("GET /api/v1/admin/instagram/schedules/{id}", middleware.Auth(middleware.RequireRole("superuser")(http.HandlerFunc(handlers.GetInstagramSchedule))))
-	mux.Handle("PUT /api/v1/admin/instagram/schedules/{id}", middleware.Auth(middleware.RequireRole("superuser")(http.HandlerFunc(handlers.UpdateInstagramSchedule))))
-	mux.Handle("DELETE /api/v1/admin/instagram/schedules/{id}", middleware.Auth(middleware.RequireRole("superuser")(http.HandlerFunc(handlers.DeleteInstagramSchedule))))
-	mux.Handle("POST /api/v1/admin/instagram/upload", middleware.Auth(middleware.RequireRole("superuser")(http.HandlerFunc(handlers.UploadInstagramImage))))
+	// CTA analytics (admin only)
+	mux.Handle("GET /api/v1/admin/cta-analytics", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.GetCTAAnalytics))))
+
+	// Instagram scheduling routes (superuser + admin)
+	mux.Handle("GET /api/v1/admin/instagram/config", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.GetInstagramConfig))))
+	mux.Handle("PUT /api/v1/admin/instagram/config", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.SaveInstagramConfig))))
+	mux.Handle("DELETE /api/v1/admin/instagram/config", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.DeleteInstagramConfig))))
+	mux.Handle("GET /api/v1/admin/instagram/test", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.TestInstagramConnection))))
+	mux.Handle("GET /api/v1/admin/instagram/feed", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.GetInstagramFeed))))
+	mux.Handle("GET /api/v1/admin/instagram/schedules", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.ListInstagramSchedules))))
+	mux.Handle("POST /api/v1/admin/instagram/schedules", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.CreateInstagramSchedule))))
+	mux.Handle("GET /api/v1/admin/instagram/schedules/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.GetInstagramSchedule))))
+	mux.Handle("PUT /api/v1/admin/instagram/schedules/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.UpdateInstagramSchedule))))
+	mux.Handle("DELETE /api/v1/admin/instagram/schedules/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.DeleteInstagramSchedule))))
+	mux.Handle("POST /api/v1/admin/instagram/upload", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.UploadInstagramImage))))
+
+	// Instagram auto-reply routes (superuser + admin)
+	mux.Handle("GET /api/v1/admin/instagram/autoreply/rules", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.ListAutoReplyRules))))
+	mux.Handle("POST /api/v1/admin/instagram/autoreply/rules", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.CreateAutoReplyRule))))
+	mux.Handle("PUT /api/v1/admin/instagram/autoreply/rules/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.UpdateAutoReplyRule))))
+	mux.Handle("PATCH /api/v1/admin/instagram/autoreply/rules/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.ToggleAutoReplyRule))))
+	mux.Handle("DELETE /api/v1/admin/instagram/autoreply/rules/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.DeleteAutoReplyRule))))
+	mux.Handle("GET /api/v1/admin/instagram/autoreply/logs", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.ListAutoReplyLogs))))
+
+	// Instagram auto-reply live feed (SSE — auth via query param, validated internally)
+	mux.HandleFunc("GET /api/v1/admin/instagram/autoreply/live", handlers.AutoReplySSE)
+
+	// Instagram leads routes (superuser + admin)
+	mux.Handle("GET /api/v1/admin/instagram/leads/export", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.ExportLeadsCSV))))
+	mux.Handle("GET /api/v1/admin/instagram/leads/stats", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.GetLeadStats))))
+	mux.Handle("GET /api/v1/admin/instagram/leads", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.ListInstagramLeads))))
+	mux.Handle("PUT /api/v1/admin/instagram/leads/{id}/tags", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.UpdateLeadTags))))
+
+	// Instagram analytics routes (superuser + admin)
+	mux.Handle("GET /api/v1/admin/instagram/analytics/autoreply", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.GetAutoReplyAnalytics))))
+	mux.Handle("GET /api/v1/admin/instagram/analytics/engagement", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.GetEngagementReport))))
 
 	// Blog routes (auth required)
 	mux.Handle("GET /api/v1/blog/posts/me", middleware.Auth(http.HandlerFunc(handlers.MyPosts)))

@@ -11,6 +11,10 @@ services:
       - MONGO_URI=mongodb://mongo:27017/tron_legacy
       - REDIS_URL=redis://redis:6379
       - PORT=8080
+      - ENCRYPTION_KEY=c123deb9b8834ff620ed1219f0a5df365ec80c34470139b96b5273f1125c078c
+      - ACCESS_TOKEN_EXPIRY=15m
+      - REFRESH_TOKEN_EXPIRY=720h
+      - META_APP_SECRET=${META_APP_SECRET:-}
     depends_on:
       - mongo
       - redis

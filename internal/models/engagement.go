@@ -58,11 +58,26 @@ type LikeResponse struct {
 	LikeCount int64 `json:"like_count"`
 }
 
+// CTAClick tracks a click on a CTA banner
+type CTAClick struct {
+	ID        primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	PostID    primitive.ObjectID `json:"post_id" bson:"post_id"`
+	CTA       string             `json:"cta" bson:"cta"`
+	IP        string             `json:"-" bson:"ip,omitempty"`
+	CreatedAt time.Time          `json:"created_at" bson:"created_at"`
+}
+
+// CTAClickRequest is the request body for tracking a CTA click
+type CTAClickRequest struct {
+	CTA string `json:"cta"`
+}
+
 // PostStatsResponse contains engagement stats for a post
 type PostStatsResponse struct {
 	ViewCount       int64 `json:"view_count"`
 	UniqueViewCount int64 `json:"unique_view_count"`
 	LikeCount       int64 `json:"like_count"`
 	CommentCount    int64 `json:"comment_count"`
+	CTAClickCount   int64 `json:"cta_click_count"`
 	Liked           bool  `json:"liked"`
 }

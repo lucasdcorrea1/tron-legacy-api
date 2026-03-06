@@ -20,6 +20,9 @@ type Config struct {
 	FrontendURL         string
 	InstagramAccountID  string
 	InstagramToken      string
+	EncryptionKey       string
+	WebhookVerifyToken  string
+	MetaAppSecret       string
 }
 
 var cfg *Config
@@ -51,6 +54,9 @@ func Load() *Config {
 		FrontendURL:        getEnv("FRONTEND_URL", "https://whodo.com.br"),
 		InstagramAccountID: getEnv("INSTAGRAM_ACCOUNT_ID", ""),
 		InstagramToken:     getEnv("INSTAGRAM_ACCESS_TOKEN", ""),
+		EncryptionKey:      getEnv("ENCRYPTION_KEY", ""),
+		WebhookVerifyToken: getEnv("WEBHOOK_VERIFY_TOKEN", ""),
+		MetaAppSecret:      getEnv("META_APP_SECRET", ""),
 	}
 
 	return cfg

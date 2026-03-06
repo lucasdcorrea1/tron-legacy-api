@@ -26,6 +26,7 @@ type BlogPost struct {
 	UniqueViewCount int64              `json:"unique_view_count" bson:"unique_view_count"`
 	LikeCount       int64              `json:"like_count" bson:"like_count"`
 	CommentCount    int64              `json:"comment_count" bson:"comment_count"`
+	CTAClickCount   int64              `json:"cta_click_count" bson:"cta_click_count"`
 	PublishedAt     *time.Time         `json:"published_at,omitempty" bson:"published_at,omitempty"`
 	CreatedAt       time.Time          `json:"created_at" bson:"created_at"`
 	UpdatedAt       time.Time          `json:"updated_at" bson:"updated_at"`

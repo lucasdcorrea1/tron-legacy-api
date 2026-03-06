@@ -36,6 +36,7 @@ type Metrics struct {
 	postUnlikes     int64
 	commentsCreated int64
 	commentsDeleted int64
+	ctaClicks       int64
 
 	// Instagram metrics
 	instagramPublished int64
@@ -141,6 +142,12 @@ func IncCommentCreated() {
 func IncCommentDeleted() {
 	metrics.mu.Lock()
 	metrics.commentsDeleted++
+	metrics.mu.Unlock()
+}
+
+func IncCTAClick() {
+	metrics.mu.Lock()
+	metrics.ctaClicks++
 	metrics.mu.Unlock()
 }
 
@@ -332,6 +339,10 @@ func PrometheusHandler() http.Handler {
 		w.Write([]byte("\n# HELP comments_deleted_total Total number of comments deleted\n"))
 		w.Write([]byte("# TYPE comments_deleted_total counter\n"))
 		w.Write([]byte("comments_deleted_total " + strconv.FormatInt(metrics.commentsDeleted, 10) + "\n"))
+
+		w.Write([]byte("\n# HELP cta_clicks_total Total number of CTA banner clicks\n"))
+		w.Write([]byte("# TYPE cta_clicks_total counter\n"))
+		w.Write([]byte("cta_clicks_total " + strconv.FormatInt(metrics.ctaClicks, 10) + "\n"))
 
 		// Instagram metrics
 		w.Write([]byte("\n# HELP instagram_published_total Total number of Instagram posts published\n"))

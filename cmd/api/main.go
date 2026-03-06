@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/tron-legacy/api/internal/config"
+	"github.com/tron-legacy/api/internal/crypto"
 	"github.com/tron-legacy/api/internal/database"
 	"github.com/tron-legacy/api/internal/handlers"
 	"github.com/tron-legacy/api/internal/router"
@@ -37,6 +38,16 @@ func main() {
 	// Ensure engagement indexes
 	if err := database.EnsureIndexes(); err != nil {
 		log.Printf("Warning: failed to ensure indexes: %v", err)
+	}
+
+	// Initialize encryption (optional — needed for per-user Instagram config)
+	if cfg.EncryptionKey != "" {
+		if err := crypto.Init(); err != nil {
+			log.Fatalf("Failed to initialize encryption: %v", err)
+		}
+		log.Println("Encryption initialized (per-user Instagram config enabled)")
+	} else {
+		log.Println("ENCRYPTION_KEY not set — per-user Instagram config disabled, using env vars only")
 	}
 
 	// Create router

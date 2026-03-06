@@ -51,8 +51,25 @@ type InstagramScheduleListResponse struct {
 	Limit     int                         `json:"limit"`
 }
 
+// InstagramConfig stores per-user Instagram credentials in the database
+type InstagramConfig struct {
+	ID                 primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	UserID             primitive.ObjectID `json:"user_id" bson:"user_id"`
+	InstagramAccountID string             `json:"instagram_account_id" bson:"instagram_account_id"`
+	AccessTokenEnc     string             `json:"-" bson:"access_token_enc"` // never sent to client
+	CreatedAt          time.Time          `json:"created_at" bson:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at" bson:"updated_at"`
+}
+
+// SaveInstagramConfigRequest is the request body for saving Instagram config
+type SaveInstagramConfigRequest struct {
+	InstagramAccountID string `json:"instagram_account_id"`
+	AccessToken        string `json:"access_token"`
+}
+
 // InstagramConfigResponse indicates whether Instagram is configured
 type InstagramConfigResponse struct {
 	Configured bool   `json:"configured"`
 	AccountID  string `json:"account_id"`
+	Source     string `json:"source"` // "user" or "env"
 }
