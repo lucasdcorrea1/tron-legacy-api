@@ -73,13 +73,16 @@ type webhookChange struct {
 }
 
 type webhookCommentValue struct {
-	ID        string `json:"id"`
-	Text      string `json:"text"`
-	MediaID   string `json:"media_id"`
-	From      struct {
+	ID   string `json:"id"`
+	Text string `json:"text"`
+	From struct {
 		ID       string `json:"id"`
 		Username string `json:"username"`
 	} `json:"from"`
+	Media struct {
+		ID               string `json:"id"`
+		MediaProductType string `json:"media_product_type"`
+	} `json:"media"`
 }
 
 type webhookMessaging struct {
@@ -187,17 +190,36 @@ func processComment(igAccountID string, comment webhookCommentValue) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
+	slog.Info("webhook_comment: received", "ig_account_id", igAccountID, "from", comment.From.Username, "text", comment.Text, "media_id", comment.Media.ID)
+
 	// Resolve credentials for this IG account
 	creds, err := resolveCredsByAccountID(ctx, igAccountID)
 	if err != nil || creds == nil {
 		slog.Warn("webhook_comment: no credentials for account", "ig_account_id", igAccountID, "error", err)
+		BroadcastWebhookEvent(WebhookSSEEvent{
+			Type: "comment", Sender: comment.From.Username,
+			TriggerText: comment.Text, Status: "failed",
+			Response:  "Erro: credenciais do Instagram não encontradas para a conta " + igAccountID,
+			Timestamp: time.Now().Format(time.RFC3339),
+		})
 		return
 	}
 
 	// Find matching active rules
-	rules, err := findMatchingRules(ctx, comment.Text, "comment", comment.MediaID)
+	rules, err := findMatchingRules(ctx, comment.Text, "comment", comment.Media.ID)
 	if err != nil {
 		slog.Error("webhook_comment: find rules", "error", err)
+		return
+	}
+
+	if len(rules) == 0 {
+		slog.Info("webhook_comment: no matching rules", "text", comment.Text)
+		BroadcastWebhookEvent(WebhookSSEEvent{
+			Type: "comment", Sender: comment.From.Username,
+			TriggerText: comment.Text, Status: "no_match",
+			Response:  "Nenhuma regra ativa corresponde a este comentário",
+			Timestamp: time.Now().Format(time.RFC3339),
+		})
 		return
 	}
 
@@ -256,18 +278,37 @@ func processDM(igAccountID string, msg webhookMessaging) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
+	senderID := msg.Sender.ID
+	text := msg.Message.Text
+
+	slog.Info("webhook_dm: received", "ig_account_id", igAccountID, "sender", senderID, "text", text)
+
 	creds, err := resolveCredsByAccountID(ctx, igAccountID)
 	if err != nil || creds == nil {
 		slog.Warn("webhook_dm: no credentials for account", "ig_account_id", igAccountID, "error", err)
+		BroadcastWebhookEvent(WebhookSSEEvent{
+			Type: "dm", Sender: senderID,
+			TriggerText: text, Status: "failed",
+			Response:  "Erro: credenciais do Instagram não encontradas para a conta " + igAccountID,
+			Timestamp: time.Now().Format(time.RFC3339),
+		})
 		return
 	}
-
-	senderID := msg.Sender.ID
-	text := msg.Message.Text
 
 	rules, err := findMatchingRules(ctx, text, "dm", "")
 	if err != nil {
 		slog.Error("webhook_dm: find rules", "error", err)
+		return
+	}
+
+	if len(rules) == 0 {
+		slog.Info("webhook_dm: no matching rules", "text", text)
+		BroadcastWebhookEvent(WebhookSSEEvent{
+			Type: "dm", Sender: senderID,
+			TriggerText: text, Status: "no_match",
+			Response:  "Nenhuma regra ativa corresponde a esta DM",
+			Timestamp: time.Now().Format(time.RFC3339),
+		})
 		return
 	}
 
@@ -433,7 +474,7 @@ func hasCooldown(ctx context.Context, senderIGID string, ruleID primitive.Object
 
 // sendInstagramDM sends a DM via the Instagram Messaging API.
 func sendInstagramDM(accountID, token, recipientID, message string) error {
-	url := fmt.Sprintf("https://graph.instagram.com/v21.0/%s/messages", accountID)
+	url := fmt.Sprintf("https://graph.facebook.com/v21.0/%s/messages", accountID)
 
 	payload := map[string]interface{}{
 		"recipient": map[string]string{"id": recipientID},
@@ -473,7 +514,7 @@ func replaceTemplateVars(message, username, keyword string) string {
 
 // sendCommentReply posts a public reply to an Instagram comment.
 func sendCommentReply(token, commentID, message string) error {
-	url := fmt.Sprintf("https://graph.instagram.com/v21.0/%s/replies", commentID)
+	url := fmt.Sprintf("https://graph.facebook.com/v21.0/%s/replies", commentID)
 
 	payload := map[string]string{"message": message}
 	body, _ := json.Marshal(payload)
