@@ -946,7 +946,8 @@ func publishToInstagram(schedule models.InstagramSchedule) (string, error) {
 	return mediaID, nil
 }
 
-// createMediaContainer creates an IG media container for a single image or carousel item
+// createMediaContainer creates an IG media container for a single image or carousel item.
+// Retries up to 3 times on transient errors.
 func createMediaContainer(accountID, token, imageURL, caption string, isCarouselItem bool) (string, error) {
 	apiURL := fmt.Sprintf("https://graph.facebook.com/v21.0/%s/media", accountID)
 
@@ -961,28 +962,46 @@ func createMediaContainer(accountID, token, imageURL, caption string, isCarousel
 		params["caption"] = caption
 	}
 
-	body, _ := json.Marshal(params)
-	resp, err := http.Post(apiURL, "application/json", bytes.NewReader(body))
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			time.Sleep(time.Duration(attempt*5) * time.Second)
+		}
 
-	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", err
-	}
+		body, _ := json.Marshal(params)
+		resp, err := http.Post(apiURL, "application/json", bytes.NewReader(body))
+		if err != nil {
+			lastErr = err
+			continue
+		}
 
-	if errMsg, ok := result["error"]; ok {
-		return "", fmt.Errorf("instagram API error: %v", errMsg)
-	}
+		var result map[string]interface{}
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			resp.Body.Close()
+			lastErr = err
+			continue
+		}
+		resp.Body.Close()
 
-	id, ok := result["id"].(string)
-	if !ok {
-		return "", fmt.Errorf("unexpected response: no id field")
-	}
+		if errObj, ok := result["error"]; ok {
+			errMap, _ := errObj.(map[string]interface{})
+			isTransient, _ := errMap["is_transient"].(bool)
+			if isTransient && attempt < 2 {
+				slog.Warn("ig_container_transient_error", "attempt", attempt+1, "error", errObj)
+				lastErr = fmt.Errorf("instagram API error: %v", errObj)
+				continue
+			}
+			return "", fmt.Errorf("instagram API error: %v", errObj)
+		}
 
-	return id, nil
+		id, ok := result["id"].(string)
+		if !ok {
+			return "", fmt.Errorf("unexpected response: no id field")
+		}
+
+		return id, nil
+	}
+	return "", lastErr
 }
 
 // createCarouselContainer creates a carousel container with children
