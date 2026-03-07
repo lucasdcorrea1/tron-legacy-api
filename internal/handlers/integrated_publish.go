@@ -373,7 +373,7 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 	startTime := time.Now().Add(1 * time.Hour)
 	endTime := startTime.AddDate(0, 0, pub.Campaign.DurationDays)
 
-	targetingJSON, _ := json.Marshal(pub.Campaign.Targeting)
+	targetingJSON, _ := json.Marshal(buildMetaTargeting(pub.Campaign.Targeting))
 
 	adsetParams := url.Values{}
 	adsetParams.Set("campaign_id", metaCampaignID)
@@ -472,6 +472,36 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 		"meta_adset_id", metaAdSetID,
 		"meta_ad_id", metaAdID,
 	)
+}
+
+// buildMetaTargeting converts targeting to Meta API format (interest IDs as numbers).
+func buildMetaTargeting(t models.AdSetTargeting) map[string]interface{} {
+	m := map[string]interface{}{}
+
+	if t.GeoLocations != nil {
+		m["geo_locations"] = t.GeoLocations
+	}
+	if t.AgeMin > 0 {
+		m["age_min"] = t.AgeMin
+	}
+	if t.AgeMax > 0 {
+		m["age_max"] = t.AgeMax
+	}
+	if len(t.Genders) > 0 {
+		m["genders"] = t.Genders
+	}
+	if len(t.Interests) > 0 {
+		interests := make([]map[string]interface{}, len(t.Interests))
+		for i, interest := range t.Interests {
+			numID, _ := strconv.ParseInt(interest.ID, 10, 64)
+			interests[i] = map[string]interface{}{
+				"id":   numID,
+				"name": interest.Name,
+			}
+		}
+		m["interests"] = interests
+	}
+	return m
 }
 
 // ipUpdateStatus updates the status and error fields of an integrated publish.
