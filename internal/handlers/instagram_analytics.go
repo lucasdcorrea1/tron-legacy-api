@@ -238,7 +238,7 @@ func GetEngagementReport(w http.ResponseWriter, r *http.Request) {
 }
 
 func fetchFollowersCount(accountID, token string) int64 {
-	url := fmt.Sprintf("https://graph.instagram.com/v21.0/%s?fields=followers_count&access_token=%s", accountID, token)
+	url := fmt.Sprintf("https://graph.facebook.com/v21.0/%s?fields=followers_count&access_token=%s", accountID, token)
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(url)
 	if err != nil {
@@ -254,7 +254,7 @@ func fetchFollowersCount(accountID, token string) int64 {
 }
 
 func fetchMediaWithInsights(accountID, token string, followers int64) []models.PostEngagement {
-	url := fmt.Sprintf("https://graph.instagram.com/v21.0/%s/media?fields=id,caption,media_url,media_type,like_count,comments_count,timestamp&limit=25&access_token=%s", accountID, token)
+	url := fmt.Sprintf("https://graph.facebook.com/v21.0/%s/media?fields=id,caption,media_url,media_type,like_count,comments_count,timestamp&limit=25&access_token=%s", accountID, token)
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(url)
 	if err != nil {

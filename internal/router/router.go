@@ -123,6 +123,76 @@ func New() http.Handler {
 	mux.Handle("GET /api/v1/admin/instagram/analytics/autoreply", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.GetAutoReplyAnalytics))))
 	mux.Handle("GET /api/v1/admin/instagram/analytics/engagement", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.GetEngagementReport))))
 
+	// Meta Ads campaign routes
+	mux.Handle("GET /api/v1/admin/meta-ads/campaigns", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.ListMetaAdsCampaigns))))
+	mux.Handle("POST /api/v1/admin/meta-ads/campaigns", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.CreateMetaAdsCampaign))))
+	mux.Handle("GET /api/v1/admin/meta-ads/campaigns/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.GetMetaAdsCampaign))))
+	mux.Handle("PUT /api/v1/admin/meta-ads/campaigns/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.UpdateMetaAdsCampaign))))
+	mux.Handle("DELETE /api/v1/admin/meta-ads/campaigns/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.DeleteMetaAdsCampaign))))
+	mux.Handle("PATCH /api/v1/admin/meta-ads/campaigns/{id}/status", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.UpdateMetaAdsCampaignStatus))))
+
+	// Meta Ads ad set routes
+	mux.Handle("GET /api/v1/admin/meta-ads/adsets", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.ListMetaAdsAdSets))))
+	mux.Handle("POST /api/v1/admin/meta-ads/adsets", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.CreateMetaAdsAdSet))))
+	mux.Handle("GET /api/v1/admin/meta-ads/adsets/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.GetMetaAdsAdSet))))
+	mux.Handle("PUT /api/v1/admin/meta-ads/adsets/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.UpdateMetaAdsAdSet))))
+	mux.Handle("DELETE /api/v1/admin/meta-ads/adsets/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.DeleteMetaAdsAdSet))))
+	mux.Handle("PATCH /api/v1/admin/meta-ads/adsets/{id}/status", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.UpdateMetaAdsAdSetStatus))))
+
+	// Meta Ads ad routes
+	mux.Handle("GET /api/v1/admin/meta-ads/ads", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.ListMetaAdsAds))))
+	mux.Handle("POST /api/v1/admin/meta-ads/ads", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.CreateMetaAdsAd))))
+	mux.Handle("GET /api/v1/admin/meta-ads/ads/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.GetMetaAdsAd))))
+	mux.Handle("PUT /api/v1/admin/meta-ads/ads/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.UpdateMetaAdsAd))))
+	mux.Handle("DELETE /api/v1/admin/meta-ads/ads/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.DeleteMetaAdsAd))))
+	mux.Handle("PATCH /api/v1/admin/meta-ads/ads/{id}/status", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.UpdateMetaAdsAdStatus))))
+
+	// Meta Ads insights
+	mux.Handle("GET /api/v1/admin/meta-ads/insights", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.GetMetaAdsInsights))))
+	mux.Handle("GET /api/v1/admin/meta-ads/campaigns/{id}/insights", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.GetMetaAdsCampaignInsights))))
+
+	// Meta Ads upload
+	mux.Handle("POST /api/v1/admin/meta-ads/upload/image", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.UploadMetaAdsImage))))
+	mux.Handle("POST /api/v1/admin/meta-ads/upload/video", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.UploadMetaAdsVideo))))
+
+	// Meta Ads targeting search
+	mux.Handle("GET /api/v1/admin/meta-ads/targeting/interests", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.SearchMetaAdsInterests))))
+	mux.Handle("GET /api/v1/admin/meta-ads/targeting/locations", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.SearchMetaAdsLocations))))
+	mux.Handle("GET /api/v1/admin/meta-ads/targeting/audiences", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.ListMetaAdsAudiences))))
+
+	// Meta Ads targeting presets
+	mux.Handle("GET /api/v1/admin/meta-ads/presets", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.ListMetaAdsPresets))))
+	mux.Handle("POST /api/v1/admin/meta-ads/presets", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.CreateMetaAdsPreset))))
+	mux.Handle("DELETE /api/v1/admin/meta-ads/presets/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.DeleteMetaAdsPreset))))
+
+	// Meta Ads campaign templates
+	mux.Handle("GET /api/v1/admin/meta-ads/templates", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.ListMetaAdsTemplates))))
+	mux.Handle("POST /api/v1/admin/meta-ads/templates", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.CreateMetaAdsTemplate))))
+	mux.Handle("DELETE /api/v1/admin/meta-ads/templates/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.DeleteMetaAdsTemplate))))
+
+	// Meta Ads budget alerts
+	mux.Handle("GET /api/v1/admin/meta-ads/alerts", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.ListMetaAdsBudgetAlerts))))
+	mux.Handle("POST /api/v1/admin/meta-ads/alerts", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.CreateMetaAdsBudgetAlert))))
+	mux.Handle("PUT /api/v1/admin/meta-ads/alerts/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.UpdateMetaAdsBudgetAlert))))
+	mux.Handle("DELETE /api/v1/admin/meta-ads/alerts/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.DeleteMetaAdsBudgetAlert))))
+
+	// Integrated Publish routes (superuser + admin)
+	mux.Handle("GET /api/v1/admin/integrated-publish", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.ListIntegratedPublishes))))
+	mux.Handle("POST /api/v1/admin/integrated-publish", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.CreateIntegratedPublish))))
+	mux.Handle("GET /api/v1/admin/integrated-publish/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.GetIntegratedPublish))))
+	mux.Handle("DELETE /api/v1/admin/integrated-publish/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.DeleteIntegratedPublish))))
+
+	// Auto-Boost rules (superuser + admin)
+	mux.Handle("GET /api/v1/admin/auto-boost/rules", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.ListAutoBoostRules))))
+	mux.Handle("POST /api/v1/admin/auto-boost/rules", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.CreateAutoBoostRule))))
+	mux.Handle("GET /api/v1/admin/auto-boost/rules/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.GetAutoBoostRule))))
+	mux.Handle("PUT /api/v1/admin/auto-boost/rules/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.UpdateAutoBoostRule))))
+	mux.Handle("PATCH /api/v1/admin/auto-boost/rules/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.ToggleAutoBoostRule))))
+	mux.Handle("DELETE /api/v1/admin/auto-boost/rules/{id}", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.DeleteAutoBoostRule))))
+
+	// Auto-Boost logs
+	mux.Handle("GET /api/v1/admin/auto-boost/logs", middleware.Auth(middleware.RequireRole("superuser", "admin")(http.HandlerFunc(handlers.ListAutoBoostLogs))))
+
 	// Blog routes (auth required)
 	mux.Handle("GET /api/v1/blog/posts/me", middleware.Auth(http.HandlerFunc(handlers.MyPosts)))
 

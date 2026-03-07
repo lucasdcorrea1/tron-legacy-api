@@ -104,6 +104,46 @@ func CTAClicks() *mongo.Collection {
 	return DB.Collection("cta_clicks")
 }
 
+func MetaAdsConfigs() *mongo.Collection {
+	return DB.Collection("meta_ads_configs")
+}
+
+func MetaAdsCampaigns() *mongo.Collection {
+	return DB.Collection("meta_ads_campaigns")
+}
+
+func MetaAdsAdSets() *mongo.Collection {
+	return DB.Collection("meta_ads_adsets")
+}
+
+func MetaAdsAds() *mongo.Collection {
+	return DB.Collection("meta_ads_ads")
+}
+
+func MetaAdsTargetingPresets() *mongo.Collection {
+	return DB.Collection("meta_ads_targeting_presets")
+}
+
+func MetaAdsCampaignTemplates() *mongo.Collection {
+	return DB.Collection("meta_ads_campaign_templates")
+}
+
+func MetaAdsBudgetAlerts() *mongo.Collection {
+	return DB.Collection("meta_ads_budget_alerts")
+}
+
+func AutoBoostRules() *mongo.Collection {
+	return DB.Collection("auto_boost_rules")
+}
+
+func AutoBoostLogs() *mongo.Collection {
+	return DB.Collection("auto_boost_logs")
+}
+
+func IntegratedPublishes() *mongo.Collection {
+	return DB.Collection("integrated_publishes")
+}
+
 // EnsureIndexes creates required indexes for engagement collections
 func EnsureIndexes() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -272,6 +312,112 @@ func EnsureIndexes() error {
 	_, err = CTAClicks().Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys:    bson.D{{Key: "created_at", Value: 1}},
 		Options: options.Index().SetExpireAfterSeconds(180 * 24 * 3600),
+	})
+	if err != nil {
+		return err
+	}
+
+	// meta_ads_configs: unique index on user_id (one config per user)
+	_, err = MetaAdsConfigs().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "user_id", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	})
+	if err != nil {
+		return err
+	}
+
+	// meta_ads_campaigns: index on user_id for listing
+	_, err = MetaAdsCampaigns().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "created_at", Value: -1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// meta_ads_adsets: index on {user_id, campaign_id}
+	_, err = MetaAdsAdSets().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "campaign_id", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// meta_ads_ads: index on {user_id, adset_id}
+	_, err = MetaAdsAds().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "adset_id", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// meta_ads_targeting_presets: index on user_id
+	_, err = MetaAdsTargetingPresets().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "user_id", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// meta_ads_campaign_templates: index on user_id
+	_, err = MetaAdsCampaignTemplates().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "user_id", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// meta_ads_budget_alerts: index on {user_id, active}
+	_, err = MetaAdsBudgetAlerts().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "active", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// auto_boost_rules: compound index on {user_id, active} for active rules lookup
+	_, err = AutoBoostRules().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "active", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// auto_boost_logs: compound index on {rule_id, ig_media_id} for cooldown check
+	_, err = AutoBoostLogs().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "rule_id", Value: 1}, {Key: "ig_media_id", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// auto_boost_logs: index on {user_id, created_at} for listing history
+	_, err = AutoBoostLogs().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "created_at", Value: -1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// auto_boost_logs: TTL index — auto-delete logs after 180 days
+	_, err = AutoBoostLogs().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "created_at", Value: 1}},
+		Options: options.Index().SetExpireAfterSeconds(180 * 24 * 3600),
+	})
+	if err != nil {
+		return err
+	}
+
+	// integrated_publishes: compound index on {status, scheduled_at} for scheduler queries
+	_, err = IntegratedPublishes().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "status", Value: 1}, {Key: "scheduled_at", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// integrated_publishes: index on {user_id, created_at} for user listing
+	_, err = IntegratedPublishes().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "created_at", Value: -1}},
 	})
 	if err != nil {
 		return err

@@ -12,6 +12,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -28,6 +29,50 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/image/draw"
 )
+
+// exchangeForLongLivedToken exchanges a short-lived Meta token for a long-lived one (~60 days).
+func exchangeForLongLivedToken(shortToken string) (string, error) {
+	cfg := config.Get()
+	if cfg.MetaAppID == "" || cfg.MetaAppSecret == "" {
+		return "", fmt.Errorf("META_APP_ID or META_APP_SECRET not configured")
+	}
+
+	url := fmt.Sprintf(
+		"https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=%s&client_secret=%s&fb_exchange_token=%s",
+		cfg.MetaAppID, cfg.MetaAppSecret, shortToken,
+	)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		AccessToken string `json:"access_token"`
+		TokenType   string `json:"token_type"`
+		ExpiresIn   int    `json:"expires_in"`
+		Error       *struct {
+			Message string `json:"message"`
+			Code    int    `json:"code"`
+		} `json:"error"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("decode failed: %w", err)
+	}
+
+	if result.Error != nil {
+		return "", fmt.Errorf("meta error %d: %s", result.Error.Code, result.Error.Message)
+	}
+
+	if result.AccessToken == "" {
+		return "", fmt.Errorf("empty access_token in response")
+	}
+
+	slog.Info("long_lived_token_obtained", "expires_in_seconds", result.ExpiresIn)
+	return result.AccessToken, nil
+}
 
 // instagramCredentials holds resolved Instagram API credentials.
 type instagramCredentials struct {
@@ -101,6 +146,20 @@ func GetInstagramConfig(w http.ResponseWriter, r *http.Request) {
 		resp.Source = creds.Source
 	}
 
+	// If source is "user", also load Meta Ads fields from the same config
+	if creds != nil && creds.Source == "user" && userID != primitive.NilObjectID {
+		var cfg models.InstagramConfig
+		err := database.InstagramConfigs().FindOne(ctx, bson.M{"user_id": userID}).Decode(&cfg)
+		if err == nil {
+			if cfg.AdAccountID != "" {
+				resp.AdAccountID = maskAccountID(cfg.AdAccountID)
+			}
+			if cfg.BusinessID != "" {
+				resp.BusinessID = maskAccountID(cfg.BusinessID)
+			}
+		}
+	}
+
 	json.NewEncoder(w).Encode(resp)
 }
 
@@ -123,29 +182,78 @@ func SaveInstagramConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.InstagramAccountID == "" || req.AccessToken == "" {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Check if config already exists (DB or env)
+	var existing models.InstagramConfig
+	existsErr := database.InstagramConfigs().FindOne(ctx, bson.M{"user_id": userID}).Decode(&existing)
+	dbConfigExists := existsErr == nil
+
+	// Also check if env credentials are available
+	creds, _ := getInstagramCredentials(ctx, userID)
+	hasAnyCreds := dbConfigExists || creds != nil
+
+	// For brand new configs (no DB, no env), require full credentials
+	if !hasAnyCreds && (req.InstagramAccountID == "" || req.AccessToken == "") {
 		http.Error(w, "instagram_account_id and access_token are required", http.StatusBadRequest)
 		return
 	}
 
-	encToken, err := crypto.Encrypt(req.AccessToken)
-	if err != nil {
-		slog.Error("encrypt_token_error", "error", err)
-		http.Error(w, "Error encrypting token", http.StatusInternalServerError)
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
 	now := time.Now()
 	filter := bson.M{"user_id": userID}
+	setFields := bson.M{
+		"updated_at": now,
+	}
+
+	// Update credentials if provided
+	if req.InstagramAccountID != "" {
+		setFields["instagram_account_id"] = req.InstagramAccountID
+	}
+	if req.AccessToken != "" {
+		// Try to exchange for a long-lived token
+		longToken, err := exchangeForLongLivedToken(req.AccessToken)
+		if err != nil {
+			slog.Warn("long_lived_token_exchange_failed, using original token", "error", err)
+			longToken = req.AccessToken
+		} else {
+			slog.Info("successfully exchanged for long-lived token")
+		}
+		encToken, err := crypto.Encrypt(longToken)
+		if err != nil {
+			slog.Error("encrypt_token_error", "error", err)
+			http.Error(w, "Error encrypting token", http.StatusInternalServerError)
+			return
+		}
+		setFields["access_token_enc"] = encToken
+	}
+
+	// If creating a new DB record from env credentials, seed with env values
+	if !dbConfigExists && creds != nil {
+		if req.InstagramAccountID == "" {
+			setFields["instagram_account_id"] = creds.AccountID
+		}
+		if req.AccessToken == "" {
+			encToken, err := crypto.Encrypt(creds.Token)
+			if err != nil {
+				slog.Error("encrypt_token_error", "error", err)
+				http.Error(w, "Error encrypting token", http.StatusInternalServerError)
+				return
+			}
+			setFields["access_token_enc"] = encToken
+		}
+	}
+
+	// Update Meta Ads fields
+	if req.AdAccountID != "" {
+		setFields["ad_account_id"] = req.AdAccountID
+	}
+	if req.BusinessID != "" {
+		setFields["business_id"] = req.BusinessID
+	}
+
 	update := bson.M{
-		"$set": bson.M{
-			"instagram_account_id": req.InstagramAccountID,
-			"access_token_enc":     encToken,
-			"updated_at":           now,
-		},
+		"$set": setFields,
 		"$setOnInsert": bson.M{
 			"user_id":    userID,
 			"created_at": now,
@@ -153,9 +261,9 @@ func SaveInstagramConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	opts := options.Update().SetUpsert(true)
 
-	_, err = database.InstagramConfigs().UpdateOne(ctx, filter, update, opts)
-	if err != nil {
-		slog.Error("save_instagram_config_error", "error", err)
+	_, dbErr := database.InstagramConfigs().UpdateOne(ctx, filter, update, opts)
+	if dbErr != nil {
+		slog.Error("save_instagram_config_error", "error", dbErr)
 		http.Error(w, "Error saving config", http.StatusInternalServerError)
 		return
 	}
@@ -221,10 +329,10 @@ func TestInstagramConnection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// GET account info — read-only, safe
-	apiURL := fmt.Sprintf(
-		"https://graph.instagram.com/v21.0/%s?fields=id,username,name,profile_picture_url,followers_count,media_count&access_token=%s",
-		creds.AccountID, creds.Token,
-	)
+	params := url.Values{}
+	params.Set("fields", "id,username,name,profile_picture_url,followers_count,media_count")
+	params.Set("access_token", creds.Token)
+	apiURL := fmt.Sprintf("https://graph.facebook.com/v21.0/%s?%s", creds.AccountID, params.Encode())
 
 	resp, err := http.Get(apiURL)
 	if err != nil {
@@ -255,7 +363,7 @@ func TestInstagramConnection(w http.ResponseWriter, r *http.Request) {
 		"ig_username", result["username"],
 	)
 
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	response := map[string]interface{}{
 		"success":             true,
 		"source":              creds.Source,
 		"id":                  result["id"],
@@ -264,7 +372,37 @@ func TestInstagramConnection(w http.ResponseWriter, r *http.Request) {
 		"profile_picture_url": result["profile_picture_url"],
 		"followers_count":     result["followers_count"],
 		"media_count":         result["media_count"],
-	})
+	}
+
+	// If AdAccountID is configured, also test the ads account
+	if creds.Source == "user" && userID != primitive.NilObjectID {
+		var cfg models.InstagramConfig
+		err := database.InstagramConfigs().FindOne(ctx, bson.M{"user_id": userID}).Decode(&cfg)
+		if err == nil && cfg.AdAccountID != "" {
+			adAccountPath := cfg.AdAccountID
+			if !strings.HasPrefix(adAccountPath, "act_") {
+				adAccountPath = "act_" + adAccountPath
+			}
+			adsParams := url.Values{}
+			adsParams.Set("fields", "name,account_status,currency,timezone_name,amount_spent")
+			adsParams.Set("access_token", creds.Token)
+			adsURL := fmt.Sprintf("https://graph.facebook.com/v21.0/%s?%s", adAccountPath, adsParams.Encode())
+			adsResp, err := http.Get(adsURL)
+			if err == nil {
+				defer adsResp.Body.Close()
+				var adsResult map[string]interface{}
+				if json.NewDecoder(adsResp.Body).Decode(&adsResult) == nil {
+					if _, hasErr := adsResult["error"]; !hasErr {
+						response["ads_account"] = adsResult
+					} else {
+						response["ads_account_error"] = adsResult["error"]
+					}
+				}
+			}
+		}
+	}
+
+	json.NewEncoder(w).Encode(response)
 }
 
 // GetInstagramFeed fetches recent media from the Instagram account (read-only)
@@ -293,10 +431,11 @@ func GetInstagramFeed(w http.ResponseWriter, r *http.Request) {
 		limit = "12"
 	}
 
-	apiURL := fmt.Sprintf(
-		"https://graph.instagram.com/v21.0/%s/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count&limit=%s&access_token=%s",
-		creds.AccountID, limit, creds.Token,
-	)
+	feedParams := url.Values{}
+	feedParams.Set("fields", "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count")
+	feedParams.Set("limit", limit)
+	feedParams.Set("access_token", creds.Token)
+	apiURL := fmt.Sprintf("https://graph.facebook.com/v21.0/%s/media?%s", creds.AccountID, feedParams.Encode())
 
 	resp, err := http.Get(apiURL)
 	if err != nil {
@@ -809,7 +948,7 @@ func publishToInstagram(schedule models.InstagramSchedule) (string, error) {
 
 // createMediaContainer creates an IG media container for a single image or carousel item
 func createMediaContainer(accountID, token, imageURL, caption string, isCarouselItem bool) (string, error) {
-	apiURL := fmt.Sprintf("https://graph.instagram.com/v21.0/%s/media", accountID)
+	apiURL := fmt.Sprintf("https://graph.facebook.com/v21.0/%s/media", accountID)
 
 	params := map[string]string{
 		"image_url":    imageURL,
@@ -848,7 +987,7 @@ func createMediaContainer(accountID, token, imageURL, caption string, isCarousel
 
 // createCarouselContainer creates a carousel container with children
 func createCarouselContainer(accountID, token string, childIDs []string, caption string) (string, error) {
-	apiURL := fmt.Sprintf("https://graph.instagram.com/v21.0/%s/media", accountID)
+	apiURL := fmt.Sprintf("https://graph.facebook.com/v21.0/%s/media", accountID)
 
 	params := map[string]string{
 		"media_type":   "CAROUSEL",
@@ -883,7 +1022,7 @@ func createCarouselContainer(accountID, token string, childIDs []string, caption
 
 // publishMediaContainer publishes a created media container
 func publishMediaContainer(accountID, token, creationID string) (string, error) {
-	apiURL := fmt.Sprintf("https://graph.instagram.com/v21.0/%s/media_publish", accountID)
+	apiURL := fmt.Sprintf("https://graph.facebook.com/v21.0/%s/media_publish", accountID)
 
 	params := map[string]string{
 		"creation_id":  creationID,

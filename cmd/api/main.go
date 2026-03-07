@@ -61,6 +61,15 @@ func main() {
 	// Start Instagram scheduler
 	go instagramScheduler()
 
+	// Start Meta Ads budget alert checker
+	go metaAdsBudgetChecker()
+
+	// Start Auto-Boost processor
+	go autoBoostProcessor()
+
+	// Start Integrated Publish scheduler
+	go integratedPublishScheduler()
+
 	// Start server
 	addr := ":" + cfg.Port
 	log.Printf("Server starting on http://localhost%s", addr)
@@ -83,6 +92,48 @@ func instagramScheduler() {
 
 	for range ticker.C {
 		handlers.ProcessScheduledInstagramPosts()
+	}
+}
+
+// metaAdsBudgetChecker runs every 15 minutes and checks budget alerts.
+func metaAdsBudgetChecker() {
+	// Wait for server to start
+	time.Sleep(30 * time.Second)
+	log.Println("Meta Ads budget checker started (15 min interval)")
+
+	ticker := time.NewTicker(15 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		handlers.CheckBudgetAlerts()
+	}
+}
+
+// integratedPublishScheduler runs every minute and processes due integrated publishes.
+func integratedPublishScheduler() {
+	// Wait for server to start
+	time.Sleep(20 * time.Second)
+	log.Println("Integrated publish scheduler started (1 min interval)")
+
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		handlers.ProcessScheduledIntegratedPublishes()
+	}
+}
+
+// autoBoostProcessor runs every 5 minutes and checks Instagram posts against boost rules.
+func autoBoostProcessor() {
+	// Wait for server to start
+	time.Sleep(45 * time.Second)
+	log.Println("Auto-Boost processor started (5 min interval)")
+
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		handlers.ProcessAutoBoosts()
 	}
 }
 

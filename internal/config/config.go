@@ -22,7 +22,10 @@ type Config struct {
 	InstagramToken      string
 	EncryptionKey       string
 	WebhookVerifyToken  string
+	MetaAppID           string
 	MetaAppSecret       string
+	MetaAdsAccountID    string
+	MetaAdsAccessToken  string
 }
 
 var cfg *Config
@@ -56,7 +59,10 @@ func Load() *Config {
 		InstagramToken:     getEnv("INSTAGRAM_ACCESS_TOKEN", ""),
 		EncryptionKey:      getEnv("ENCRYPTION_KEY", ""),
 		WebhookVerifyToken: getEnv("WEBHOOK_VERIFY_TOKEN", ""),
+		MetaAppID:          getEnv("META_APP_ID", ""),
 		MetaAppSecret:      getEnv("META_APP_SECRET", ""),
+		MetaAdsAccountID:   getEnv("META_ADS_ACCOUNT_ID", ""),
+		MetaAdsAccessToken: getEnv("META_ADS_ACCESS_TOKEN", ""),
 	}
 
 	return cfg

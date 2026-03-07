@@ -57,6 +57,8 @@ type InstagramConfig struct {
 	UserID             primitive.ObjectID `json:"user_id" bson:"user_id"`
 	InstagramAccountID string             `json:"instagram_account_id" bson:"instagram_account_id"`
 	AccessTokenEnc     string             `json:"-" bson:"access_token_enc"` // never sent to client
+	AdAccountID        string             `json:"ad_account_id,omitempty" bson:"ad_account_id,omitempty"`
+	BusinessID         string             `json:"business_id,omitempty" bson:"business_id,omitempty"`
 	CreatedAt          time.Time          `json:"created_at" bson:"created_at"`
 	UpdatedAt          time.Time          `json:"updated_at" bson:"updated_at"`
 }
@@ -65,11 +67,15 @@ type InstagramConfig struct {
 type SaveInstagramConfigRequest struct {
 	InstagramAccountID string `json:"instagram_account_id"`
 	AccessToken        string `json:"access_token"`
+	AdAccountID        string `json:"ad_account_id,omitempty"`
+	BusinessID         string `json:"business_id,omitempty"`
 }
 
 // InstagramConfigResponse indicates whether Instagram is configured
 type InstagramConfigResponse struct {
-	Configured bool   `json:"configured"`
-	AccountID  string `json:"account_id"`
-	Source     string `json:"source"` // "user" or "env"
+	Configured  bool   `json:"configured"`
+	AccountID   string `json:"account_id"`
+	Source      string `json:"source"` // "user" or "env"
+	AdAccountID string `json:"ad_account_id,omitempty"`
+	BusinessID  string `json:"business_id,omitempty"`
 }
