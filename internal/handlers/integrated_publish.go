@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/tron-legacy/api/internal/config"
 	"github.com/tron-legacy/api/internal/database"
 	"github.com/tron-legacy/api/internal/middleware"
 	"github.com/tron-legacy/api/internal/models"
@@ -408,32 +407,24 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 		"$set": bson.M{"meta_adset_id": metaAdSetID, "updated_at": time.Now()},
 	})
 
+	// Wait for Instagram to fully process the published media before creating ad creative
+	slog.Info("integrated_publish_waiting_media_sync", "id", pub.ID.Hex(), "seconds", 15)
+	time.Sleep(15 * time.Second)
+
 	// Step 2c: Create Ad Creative using the published IG post
+	// Use object_story_id format: {instagram_account_id}_{media_id}
 	creativeParams := url.Values{}
 	creativeParams.Set("name", pub.Campaign.Name+" Creative")
 
-	// Build object_story_spec — CTA must be inside the spec, not a separate param
-	linkURL := pub.Campaign.Creative.LinkURL
-	if linkURL == "" {
-		linkURL = config.Get().FrontendURL
-	}
-	cta := pub.Campaign.Creative.CallToAction
-	if cta == "" {
-		cta = "LEARN_MORE"
-	}
+	objectStoryID := igCreds.AccountID + "_" + mediaID
+	creativeParams.Set("object_story_id", objectStoryID)
 
-	spec := map[string]interface{}{
-		"instagram_actor_id":        igCreds.AccountID,
-		"source_instagram_media_id": mediaID,
-	}
-	if pub.Campaign.Objective == "OUTCOME_TRAFFIC" {
-		spec["call_to_action"] = map[string]interface{}{
-			"type":  cta,
-			"value": map[string]string{"link": linkURL},
-		}
-	}
-	specJSON, _ := json.Marshal(spec)
-	creativeParams.Set("object_story_spec", string(specJSON))
+	slog.Info("integrated_publish_creative_attempt",
+		"id", pub.ID.Hex(),
+		"object_story_id", objectStoryID,
+		"ig_account_id", igCreds.AccountID,
+		"media_id", mediaID,
+	)
 
 	creativeResult, err := metaGraphPost(accountPath+"/adcreatives", adsCreds.Token, creativeParams)
 	if err != nil {
