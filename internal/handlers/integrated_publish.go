@@ -503,6 +503,10 @@ func buildMetaTargeting(t models.AdSetTargeting) map[string]interface{} {
 			{"interests": interests},
 		}
 	}
+	// Disable Advantage Audience — use exact targeting as specified
+	m["targeting_automation"] = map[string]interface{}{
+		"advantage_audience": 0,
+	}
 	return m
 }
 
