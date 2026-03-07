@@ -353,7 +353,7 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 	campaignParams := url.Values{}
 	campaignParams.Set("name", pub.Campaign.Name)
 	campaignParams.Set("objective", pub.Campaign.Objective)
-	campaignParams.Set("status", "PAUSED")
+	campaignParams.Set("status", "ACTIVE")
 	campaignParams.Set("special_ad_categories", "NONE")
 	campaignParams.Set("bid_strategy", "LOWEST_COST_WITHOUT_CAP")
 	campaignParams.Set("is_adset_budget_sharing_enabled", "false")
@@ -385,14 +385,14 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 	optGoal := "REACH"
 	switch pub.Campaign.Objective {
 	case "OUTCOME_TRAFFIC":
-		optGoal = "LINK_CLICKS"
+		optGoal = "LANDING_PAGE_VIEWS"
 	case "OUTCOME_ENGAGEMENT":
 		optGoal = "POST_ENGAGEMENT"
 	case "OUTCOME_AWARENESS":
 		optGoal = "REACH"
 	}
 	adsetParams.Set("optimization_goal", optGoal)
-	adsetParams.Set("status", "PAUSED")
+	adsetParams.Set("status", "ACTIVE")
 	adsetParams.Set("start_time", startTime.Format(time.RFC3339))
 	adsetParams.Set("end_time", endTime.Format(time.RFC3339))
 	adsetParams.Set("targeting", string(targetingJSON))
@@ -446,7 +446,7 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 	adParams := url.Values{}
 	adParams.Set("name", pub.Campaign.Name+" - Ad")
 	adParams.Set("adset_id", metaAdSetID)
-	adParams.Set("status", "PAUSED")
+	adParams.Set("status", "ACTIVE")
 	adParams.Set("creative", fmt.Sprintf(`{"creative_id":"%s"}`, creativeID))
 
 	adResult, err := metaGraphPost(accountPath+"/ads", adsCreds.Token, adParams)
