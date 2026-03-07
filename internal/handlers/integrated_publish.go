@@ -499,7 +499,9 @@ func buildMetaTargeting(t models.AdSetTargeting) map[string]interface{} {
 				"name": interest.Name,
 			}
 		}
-		m["interests"] = interests
+		m["flexible_spec"] = []map[string]interface{}{
+			{"interests": interests},
+		}
 	}
 	return m
 }
