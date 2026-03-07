@@ -349,14 +349,14 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 
 	accountPath := adAccountPath(adsCreds.AdAccountID)
 
-	// Step 2a: Create Campaign
+	// Step 2a: Create Campaign (with Campaign Budget Optimization)
 	campaignParams := url.Values{}
 	campaignParams.Set("name", pub.Campaign.Name)
 	campaignParams.Set("objective", pub.Campaign.Objective)
 	campaignParams.Set("status", "ACTIVE")
 	campaignParams.Set("special_ad_categories", "NONE")
+	campaignParams.Set("daily_budget", fmt.Sprintf("%d", pub.Campaign.DailyBudget))
 	campaignParams.Set("bid_strategy", "LOWEST_COST_WITHOUT_CAP")
-	campaignParams.Set("is_adset_budget_sharing_enabled", "false")
 
 	campaignResult, err := metaGraphPost(accountPath+"/campaigns", adsCreds.Token, campaignParams)
 	if err != nil {
@@ -379,7 +379,6 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 	adsetParams := url.Values{}
 	adsetParams.Set("campaign_id", metaCampaignID)
 	adsetParams.Set("name", pub.Campaign.Name+" - Ad Set")
-	adsetParams.Set("daily_budget", fmt.Sprintf("%d", pub.Campaign.DailyBudget))
 	adsetParams.Set("billing_event", "IMPRESSIONS")
 	// Match optimization goal to campaign objective
 	optGoal := "REACH"
