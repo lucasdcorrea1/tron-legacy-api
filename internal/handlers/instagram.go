@@ -887,7 +887,7 @@ func getPublicImageURL(imageID string) string {
 
 // publishToInstagram publishes a scheduled post to Instagram via Graph API
 func publishToInstagram(schedule models.InstagramSchedule) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
 	creds, err := getInstagramCredentials(ctx, schedule.UserID)
@@ -1021,7 +1021,38 @@ func createCarouselContainer(accountID, token string, childIDs []string, caption
 }
 
 // publishMediaContainer publishes a created media container
+func waitForContainerReady(containerID, token string) error {
+	checkURL := fmt.Sprintf("https://graph.facebook.com/v21.0/%s?fields=status_code&access_token=%s", containerID, token)
+
+	for i := 0; i < 30; i++ {
+		resp, err := http.Get(checkURL)
+		if err != nil {
+			return err
+		}
+
+		var result map[string]interface{}
+		json.NewDecoder(resp.Body).Decode(&result)
+		resp.Body.Close()
+
+		statusCode, _ := result["status_code"].(string)
+		switch statusCode {
+		case "FINISHED":
+			return nil
+		case "ERROR":
+			return fmt.Errorf("container processing failed")
+		}
+		// IN_PROGRESS or empty — wait and retry
+		time.Sleep(2 * time.Second)
+	}
+	return fmt.Errorf("container not ready after 60s")
+}
+
 func publishMediaContainer(accountID, token, creationID string) (string, error) {
+	// Wait for container to be ready before publishing
+	if err := waitForContainerReady(creationID, token); err != nil {
+		return "", fmt.Errorf("wait for container: %w", err)
+	}
+
 	apiURL := fmt.Sprintf("https://graph.facebook.com/v21.0/%s/media_publish", accountID)
 
 	params := map[string]string{
