@@ -412,7 +412,7 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 	creativeParams := url.Values{}
 	creativeParams.Set("name", pub.Campaign.Name+" Creative")
 
-	// Build object_story_spec based on objective
+	// Build object_story_spec — CTA must be inside the spec, not a separate param
 	linkURL := pub.Campaign.Creative.LinkURL
 	if linkURL == "" {
 		linkURL = config.Get().FrontendURL
@@ -422,15 +422,18 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 		cta = "LEARN_MORE"
 	}
 
-	objectStorySpec := fmt.Sprintf(`{"instagram_actor_id":"%s","source_instagram_media_id":"%s"}`,
-		igCreds.AccountID, mediaID)
-	creativeParams.Set("object_story_spec", objectStorySpec)
-
-	// For traffic campaigns, add CTA with link
-	if pub.Campaign.Objective == "OUTCOME_TRAFFIC" {
-		ctaSpec := fmt.Sprintf(`{"type":"%s","value":{"link":"%s"}}`, cta, linkURL)
-		creativeParams.Set("call_to_action", ctaSpec)
+	spec := map[string]interface{}{
+		"instagram_actor_id":        igCreds.AccountID,
+		"source_instagram_media_id": mediaID,
 	}
+	if pub.Campaign.Objective == "OUTCOME_TRAFFIC" {
+		spec["call_to_action"] = map[string]interface{}{
+			"type":  cta,
+			"value": map[string]string{"link": linkURL},
+		}
+	}
+	specJSON, _ := json.Marshal(spec)
+	creativeParams.Set("object_story_spec", string(specJSON))
 
 	creativeResult, err := metaGraphPost(accountPath+"/adcreatives", adsCreds.Token, creativeParams)
 	if err != nil {
