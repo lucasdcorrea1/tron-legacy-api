@@ -354,7 +354,7 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 	campaignParams.Set("objective", pub.Campaign.Objective)
 	campaignParams.Set("status", "PAUSED")
 	campaignParams.Set("special_ad_categories", "NONE")
-	campaignParams.Set("is_adset_budget_sharing_enabled", "true")
+	campaignParams.Set("is_adset_budget_sharing_enabled", "false")
 
 	campaignResult, err := metaGraphPost(accountPath+"/campaigns", adsCreds.Token, campaignParams)
 	if err != nil {
