@@ -422,16 +422,15 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 		cta = "LEARN_MORE"
 	}
 
-	var objectStorySpec string
-	if pub.Campaign.Objective == "OUTCOME_TRAFFIC" {
-		// Traffic needs a link attachment with CTA
-		objectStorySpec = fmt.Sprintf(`{"instagram_actor_id":"%s","source_instagram_media_id":"%s","link_data":{"link":"%s","call_to_action":{"type":"%s","value":{"link":"%s"}}}}`,
-			igCreds.AccountID, mediaID, linkURL, cta, linkURL)
-	} else {
-		objectStorySpec = fmt.Sprintf(`{"instagram_actor_id":"%s","source_instagram_media_id":"%s"}`,
-			igCreds.AccountID, mediaID)
-	}
+	objectStorySpec := fmt.Sprintf(`{"instagram_actor_id":"%s","source_instagram_media_id":"%s"}`,
+		igCreds.AccountID, mediaID)
 	creativeParams.Set("object_story_spec", objectStorySpec)
+
+	// For traffic campaigns, add CTA with link
+	if pub.Campaign.Objective == "OUTCOME_TRAFFIC" {
+		ctaSpec := fmt.Sprintf(`{"type":"%s","value":{"link":"%s"}}`, cta, linkURL)
+		creativeParams.Set("call_to_action", ctaSpec)
+	}
 
 	creativeResult, err := metaGraphPost(accountPath+"/adcreatives", adsCreds.Token, creativeParams)
 	if err != nil {
