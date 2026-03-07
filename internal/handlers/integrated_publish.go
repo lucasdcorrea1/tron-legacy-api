@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/tron-legacy/api/internal/config"
 	"github.com/tron-legacy/api/internal/database"
 	"github.com/tron-legacy/api/internal/middleware"
 	"github.com/tron-legacy/api/internal/models"
@@ -379,7 +380,17 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 	adsetParams.Set("name", pub.Campaign.Name+" - Ad Set")
 	adsetParams.Set("daily_budget", fmt.Sprintf("%d", pub.Campaign.DailyBudget))
 	adsetParams.Set("billing_event", "IMPRESSIONS")
-	adsetParams.Set("optimization_goal", "REACH")
+	// Match optimization goal to campaign objective
+	optGoal := "REACH"
+	switch pub.Campaign.Objective {
+	case "OUTCOME_TRAFFIC":
+		optGoal = "LINK_CLICKS"
+	case "OUTCOME_ENGAGEMENT":
+		optGoal = "POST_ENGAGEMENT"
+	case "OUTCOME_AWARENESS":
+		optGoal = "REACH"
+	}
+	adsetParams.Set("optimization_goal", optGoal)
 	adsetParams.Set("status", "PAUSED")
 	adsetParams.Set("start_time", startTime.Format(time.RFC3339))
 	adsetParams.Set("end_time", endTime.Format(time.RFC3339))
@@ -400,7 +411,26 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 	// Step 2c: Create Ad Creative using the published IG post
 	creativeParams := url.Values{}
 	creativeParams.Set("name", pub.Campaign.Name+" Creative")
-	objectStorySpec := fmt.Sprintf(`{"instagram_actor_id":"%s","source_instagram_media_id":"%s"}`, igCreds.AccountID, mediaID)
+
+	// Build object_story_spec based on objective
+	linkURL := pub.Campaign.Creative.LinkURL
+	if linkURL == "" {
+		linkURL = config.Get().FrontendURL
+	}
+	cta := pub.Campaign.Creative.CallToAction
+	if cta == "" {
+		cta = "LEARN_MORE"
+	}
+
+	var objectStorySpec string
+	if pub.Campaign.Objective == "OUTCOME_TRAFFIC" {
+		// Traffic needs a link attachment with CTA
+		objectStorySpec = fmt.Sprintf(`{"instagram_actor_id":"%s","source_instagram_media_id":"%s","link_data":{"link":"%s","call_to_action":{"type":"%s","value":{"link":"%s"}}}}`,
+			igCreds.AccountID, mediaID, linkURL, cta, linkURL)
+	} else {
+		objectStorySpec = fmt.Sprintf(`{"instagram_actor_id":"%s","source_instagram_media_id":"%s"}`,
+			igCreds.AccountID, mediaID)
+	}
 	creativeParams.Set("object_story_spec", objectStorySpec)
 
 	creativeResult, err := metaGraphPost(accountPath+"/adcreatives", adsCreds.Token, creativeParams)
