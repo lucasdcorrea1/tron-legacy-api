@@ -144,6 +144,10 @@ func IntegratedPublishes() *mongo.Collection {
 	return DB.Collection("integrated_publishes")
 }
 
+func AIConfigs() *mongo.Collection {
+	return DB.Collection("ai_configs")
+}
+
 // ── Multi-tenant collections ─────────────────────────────────────────
 
 func Organizations() *mongo.Collection {
@@ -436,6 +440,15 @@ func EnsureIndexes() error {
 	// integrated_publishes: index on {org_id, created_at} for org listing
 	_, err = IntegratedPublishes().Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{{Key: "org_id", Value: 1}, {Key: "created_at", Value: -1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// ai_configs: unique index on org_id (one config per org)
+	_, err = AIConfigs().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "org_id", Value: 1}},
+		Options: options.Index().SetUnique(true),
 	})
 	if err != nil {
 		return err

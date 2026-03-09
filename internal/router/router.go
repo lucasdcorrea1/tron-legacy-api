@@ -226,7 +226,14 @@ func New() http.Handler {
 	mux.Handle("GET /api/v1/admin/integrated-publish", orgRoute("owner", "admin", "member")(http.HandlerFunc(handlers.ListIntegratedPublishes)))
 	mux.Handle("POST /api/v1/admin/integrated-publish", orgRoute("owner", "admin", "member")(http.HandlerFunc(handlers.CreateIntegratedPublish)))
 	mux.Handle("GET /api/v1/admin/integrated-publish/{id}", orgRoute("owner", "admin", "member")(http.HandlerFunc(handlers.GetIntegratedPublish)))
+	mux.Handle("PUT /api/v1/admin/integrated-publish/{id}", orgRoute("owner", "admin")(http.HandlerFunc(handlers.UpdateIntegratedPublish)))
 	mux.Handle("DELETE /api/v1/admin/integrated-publish/{id}", orgRoute("owner", "admin")(http.HandlerFunc(handlers.DeleteIntegratedPublish)))
+
+	// AI (Claude) routes (org-scoped)
+	mux.Handle("GET /api/v1/admin/ai/config", orgRoute("owner", "admin", "member")(http.HandlerFunc(handlers.GetAIConfig)))
+	mux.Handle("PUT /api/v1/admin/ai/config", orgRoute("owner", "admin")(http.HandlerFunc(handlers.SaveAIConfig)))
+	mux.Handle("DELETE /api/v1/admin/ai/config", orgRoute("owner", "admin")(http.HandlerFunc(handlers.DeleteAIConfig)))
+	mux.Handle("POST /api/v1/admin/ai/generate", orgRoute("owner", "admin", "member")(http.HandlerFunc(handlers.GenerateAIContent)))
 
 	// Auto-Boost rules (org-scoped)
 	mux.Handle("GET /api/v1/admin/auto-boost/rules", orgRoute("owner", "admin", "member")(http.HandlerFunc(handlers.ListAutoBoostRules)))
