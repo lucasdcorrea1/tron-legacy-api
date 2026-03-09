@@ -455,7 +455,7 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 	optGoal := "REACH"
 	switch pub.Campaign.Objective {
 	case "OUTCOME_TRAFFIC":
-		optGoal = "LANDING_PAGE_VIEWS"
+		optGoal = "LINK_CLICKS"
 	case "OUTCOME_ENGAGEMENT":
 		optGoal = "POST_ENGAGEMENT"
 	case "OUTCOME_AWARENESS":
@@ -487,57 +487,15 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 	creativeParams := url.Values{}
 	creativeParams.Set("name", pub.Campaign.Name+" Creative")
 
-	if pub.Campaign.Objective == "OUTCOME_TRAFFIC" {
-		// TRAFFIC: use source_instagram_media_id + object_story_spec with page_id + link_data
-		pageID, err := resolveFacebookPageID(adsCreds.Token, igCreds.AccountID)
-		if err != nil {
-			slog.Error("integrated_publish_resolve_page_id_error", "id", pub.ID.Hex(), "error", err)
-			ipUpdateStatus(ctx, pub.ID, "failed", "Could not resolve Facebook Page ID: "+err.Error(), "ads")
-			return
-		}
-		linkURL := pub.Campaign.Creative.LinkURL
-		if linkURL == "" {
-			linkURL = "https://ig.me/" + mediaID
-		}
-		cta := pub.Campaign.Creative.CallToAction
-		if cta == "" {
-			cta = "LEARN_MORE"
-		}
+	// All objectives: promote existing IG post via object_story_id
+	objectStoryID := igCreds.AccountID + "_" + mediaID
+	creativeParams.Set("object_story_id", objectStoryID)
 
-		creativeParams.Set("source_instagram_media_id", mediaID)
-		spec := map[string]interface{}{
-			"page_id": pageID,
-			"link_data": map[string]interface{}{
-				"link":    linkURL,
-				"message": pub.Caption,
-				"call_to_action": map[string]interface{}{
-					"type":  cta,
-					"value": map[string]string{"link": linkURL},
-				},
-			},
-		}
-		specJSON, _ := json.Marshal(spec)
-		creativeParams.Set("object_story_spec", string(specJSON))
-
-		slog.Info("integrated_publish_creative_attempt",
-			"id", pub.ID.Hex(),
-			"approach", "source_instagram_media_id+link_data",
-			"page_id", pageID,
-			"media_id", mediaID,
-			"link_url", linkURL,
-			"cta", cta,
-		)
-	} else {
-		// ENGAGEMENT / AWARENESS: promote existing post as-is
-		objectStoryID := igCreds.AccountID + "_" + mediaID
-		creativeParams.Set("object_story_id", objectStoryID)
-
-		slog.Info("integrated_publish_creative_attempt",
-			"id", pub.ID.Hex(),
-			"approach", "object_story_id",
-			"object_story_id", objectStoryID,
-		)
-	}
+	slog.Info("integrated_publish_creative_attempt",
+		"id", pub.ID.Hex(),
+		"approach", "object_story_id",
+		"object_story_id", objectStoryID,
+	)
 
 	creativeResult, err := metaGraphPost(accountPath+"/adcreatives", adsCreds.Token, creativeParams)
 	if err != nil {
