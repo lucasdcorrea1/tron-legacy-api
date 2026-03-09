@@ -512,17 +512,22 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 		if cta == "" {
 			cta = "LEARN_MORE"
 		}
+		linkData := map[string]interface{}{
+			"link":    pub.Campaign.Creative.LinkURL,
+			"message": pub.Caption,
+			"call_to_action": map[string]interface{}{
+				"type":  cta,
+				"value": map[string]string{"link": pub.Campaign.Creative.LinkURL},
+			},
+		}
+		// Include the post image so Meta doesn't depend on OG tag scraping
+		if len(pub.ImageIDs) > 0 {
+			linkData["picture"] = getPublicImageURL(pub.ImageIDs[0])
+		}
 		objectStorySpec := map[string]interface{}{
 			"page_id":            fbPageID,
 			"instagram_actor_id": igCreds.AccountID,
-			"link_data": map[string]interface{}{
-				"link":    pub.Campaign.Creative.LinkURL,
-				"message": pub.Caption,
-				"call_to_action": map[string]interface{}{
-					"type":  cta,
-					"value": map[string]string{"link": pub.Campaign.Creative.LinkURL},
-				},
-			},
+			"link_data":          linkData,
 		}
 		specJSON, _ := json.Marshal(objectStorySpec)
 		creativeParams.Set("object_story_spec", string(specJSON))
@@ -532,6 +537,7 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 			"approach", "object_story_spec_traffic",
 			"fb_page_id", fbPageID,
 			"link_url", pub.Campaign.Creative.LinkURL,
+			"image_url", linkData["picture"],
 		)
 	} else {
 		// ENGAGEMENT / AWARENESS: promote existing IG post via object_story_spec
