@@ -420,9 +420,11 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 	if pub.Campaign.Objective == "OUTCOME_TRAFFIC" {
 		// TRAFFIC requires a creative with a destination link.
 		// Use object_story_spec with source_instagram_media_id + call_to_action.
-		pageID := adsCreds.BusinessID
-		if pageID == "" {
-			pageID = igCreds.AccountID
+		pageID, err := resolveFacebookPageID(adsCreds.Token, igCreds.AccountID)
+		if err != nil {
+			slog.Error("integrated_publish_resolve_page_id_error", "id", pub.ID.Hex(), "error", err)
+			ipUpdateStatus(ctx, pub.ID, "failed", "Could not resolve Facebook Page ID: "+err.Error(), "ads")
+			return
 		}
 		linkURL := pub.Campaign.Creative.LinkURL
 		if linkURL == "" {
@@ -505,6 +507,38 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 		"meta_adset_id", metaAdSetID,
 		"meta_ad_id", metaAdID,
 	)
+}
+
+// resolveFacebookPageID finds the Facebook Page ID linked to an Instagram Business Account
+// by querying GET /me/accounts and matching instagram_business_account.id.
+func resolveFacebookPageID(token, igAccountID string) (string, error) {
+	apiURL := "https://graph.facebook.com/v21.0/me/accounts?fields=id,instagram_business_account&access_token=" + url.QueryEscape(token)
+
+	resp, err := http.Get(apiURL)
+	if err != nil {
+		return "", fmt.Errorf("http error: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Data []struct {
+			ID                       string `json:"id"`
+			InstagramBusinessAccount struct {
+				ID string `json:"id"`
+			} `json:"instagram_business_account"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("decode error: %w", err)
+	}
+
+	for _, page := range result.Data {
+		if page.InstagramBusinessAccount.ID == igAccountID {
+			return page.ID, nil
+		}
+	}
+
+	return "", fmt.Errorf("no Facebook Page found linked to Instagram account %s", igAccountID)
 }
 
 // buildMetaTargeting converts targeting to Meta API format (interest IDs as numbers).
