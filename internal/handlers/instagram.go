@@ -869,11 +869,38 @@ func UploadInstagramImage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// resizeInstagramImage resizes image to max width maintaining aspect ratio
+// resizeInstagramImage resizes image to max width and enforces Instagram feed
+// aspect ratio limits (4:5 portrait to 1.91:1 landscape). Images taller than
+// 4:5 are center-cropped before resizing.
 func resizeInstagramImage(img image.Image, maxWidth int) image.Image {
 	bounds := img.Bounds()
 	srcW := bounds.Dx()
 	srcH := bounds.Dy()
+
+	// Enforce aspect ratio: min 4:5 (0.8), max 1.91:1
+	// If image is taller than 4:5, center-crop height
+	ratio := float64(srcW) / float64(srcH)
+	if ratio < 0.8 {
+		// Too tall (e.g. 9:16 stories) — crop to 4:5 from center
+		newH := int(float64(srcW) / 0.8)
+		top := (srcH - newH) / 2
+		cropRect := image.Rect(bounds.Min.X, bounds.Min.Y+top, bounds.Max.X, bounds.Min.Y+top+newH)
+		cropped := image.NewRGBA(image.Rect(0, 0, srcW, newH))
+		draw.CatmullRom.Scale(cropped, cropped.Bounds(), img, cropRect, draw.Over, nil)
+		img = cropped
+		srcW = srcW
+		srcH = newH
+	} else if ratio > 1.91 {
+		// Too wide — crop to 1.91:1 from center
+		newW := int(float64(srcH) * 1.91)
+		left := (srcW - newW) / 2
+		cropRect := image.Rect(bounds.Min.X+left, bounds.Min.Y, bounds.Min.X+left+newW, bounds.Max.Y)
+		cropped := image.NewRGBA(image.Rect(0, 0, newW, srcH))
+		draw.CatmullRom.Scale(cropped, cropped.Bounds(), img, cropRect, draw.Over, nil)
+		img = cropped
+		srcW = newW
+		srcH = srcH
+	}
 
 	if srcW <= maxWidth {
 		return img
@@ -883,7 +910,7 @@ func resizeInstagramImage(img image.Image, maxWidth int) image.Image {
 	newH := int(float64(srcH) * float64(maxWidth) / float64(srcW))
 
 	dst := image.NewRGBA(image.Rect(0, 0, newW, newH))
-	draw.CatmullRom.Scale(dst, dst.Bounds(), img, bounds, draw.Over, nil)
+	draw.CatmullRom.Scale(dst, dst.Bounds(), img, img.Bounds(), draw.Over, nil)
 
 	return dst
 }
