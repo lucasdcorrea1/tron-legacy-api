@@ -412,19 +412,57 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 	time.Sleep(15 * time.Second)
 
 	// Step 2c: Create Ad Creative using the published IG post
-	// Use object_story_id format: {instagram_account_id}_{media_id}
 	creativeParams := url.Values{}
 	creativeParams.Set("name", pub.Campaign.Name+" Creative")
 
-	objectStoryID := igCreds.AccountID + "_" + mediaID
-	creativeParams.Set("object_story_id", objectStoryID)
+	if pub.Campaign.Objective == "OUTCOME_TRAFFIC" {
+		// TRAFFIC requires a creative with a destination link.
+		// Use object_story_spec with source_instagram_media_id + call_to_action.
+		pageID := adsCreds.BusinessID
+		if pageID == "" {
+			pageID = igCreds.AccountID
+		}
+		linkURL := pub.Campaign.Creative.LinkURL
+		if linkURL == "" {
+			linkURL = "https://ig.me/" + mediaID
+		}
+		cta := pub.Campaign.Creative.CallToAction
+		if cta == "" {
+			cta = "LEARN_MORE"
+		}
 
-	slog.Info("integrated_publish_creative_attempt",
-		"id", pub.ID.Hex(),
-		"object_story_id", objectStoryID,
-		"ig_account_id", igCreds.AccountID,
-		"media_id", mediaID,
-	)
+		spec := map[string]interface{}{
+			"page_id":                   pageID,
+			"instagram_actor_id":        igCreds.AccountID,
+			"source_instagram_media_id": mediaID,
+			"call_to_action": map[string]interface{}{
+				"type":  cta,
+				"value": map[string]string{"link": linkURL},
+			},
+		}
+		specJSON, _ := json.Marshal(spec)
+		creativeParams.Set("object_story_spec", string(specJSON))
+
+		slog.Info("integrated_publish_creative_attempt",
+			"id", pub.ID.Hex(),
+			"approach", "object_story_spec+traffic",
+			"page_id", pageID,
+			"ig_account_id", igCreds.AccountID,
+			"media_id", mediaID,
+			"link_url", linkURL,
+			"cta", cta,
+		)
+	} else {
+		// ENGAGEMENT / AWARENESS: promote existing post as-is
+		objectStoryID := igCreds.AccountID + "_" + mediaID
+		creativeParams.Set("object_story_id", objectStoryID)
+
+		slog.Info("integrated_publish_creative_attempt",
+			"id", pub.ID.Hex(),
+			"approach", "object_story_id",
+			"object_story_id", objectStoryID,
+		)
+	}
 
 	creativeResult, err := metaGraphPost(accountPath+"/adcreatives", adsCreds.Token, creativeParams)
 	if err != nil {
