@@ -230,6 +230,76 @@ func GetIntegratedPublish(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(buildIPResponse(pub))
 }
 
+func UpdateIntegratedPublish(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrgID(r)
+	if orgID == primitive.NilObjectID {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	oid, err := primitive.ObjectIDFromHex(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+
+	var body struct {
+		ScheduledAt string `json:"scheduled_at"`
+		Status      string `json:"status"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var pub models.IntegratedPublish
+	err = database.IntegratedPublishes().FindOne(ctx, bson.M{"_id": oid, "org_id": orgID}).Decode(&pub)
+	if err != nil {
+		http.Error(w, "Not found", http.StatusNotFound)
+		return
+	}
+
+	if pub.Status == "publishing_ig" || pub.Status == "publishing_ads" {
+		http.Error(w, "Cannot update while publishing is in progress", http.StatusBadRequest)
+		return
+	}
+
+	set := bson.M{"updated_at": time.Now()}
+
+	if body.ScheduledAt != "" {
+		scheduledAt, err := time.Parse(time.RFC3339, body.ScheduledAt)
+		if err != nil {
+			http.Error(w, "scheduled_at must be a valid ISO 8601 date", http.StatusBadRequest)
+			return
+		}
+		set["scheduled_at"] = scheduledAt
+	}
+
+	if body.Status != "" {
+		if body.Status != "scheduled" {
+			http.Error(w, "Only 'scheduled' status is allowed for rescheduling", http.StatusBadRequest)
+			return
+		}
+		set["status"] = body.Status
+		set["error_message"] = ""
+		set["error_phase"] = ""
+	}
+
+	if _, err := database.IntegratedPublishes().UpdateOne(ctx, bson.M{"_id": oid, "org_id": orgID}, bson.M{"$set": set}); err != nil {
+		http.Error(w, "Error updating record", http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("integrated_publish_updated", "id", oid.Hex(), "org_id", orgID.Hex())
+
+	// Return updated document
+	database.IntegratedPublishes().FindOne(ctx, bson.M{"_id": oid}).Decode(&pub)
+	json.NewEncoder(w).Encode(buildIPResponse(pub))
+}
+
 func DeleteIntegratedPublish(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 	if orgID == primitive.NilObjectID {
@@ -417,12 +487,14 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 	creativeParams := url.Values{}
 	creativeParams.Set("name", pub.Campaign.Name+" Creative")
 
-	// Use object_story_id for all objectives — promotes the existing IG post
-	objectStoryID := igCreds.AccountID + "_" + mediaID
-	creativeParams.Set("object_story_id", objectStoryID)
-
-	// For TRAFFIC, add call_to_action with destination link
 	if pub.Campaign.Objective == "OUTCOME_TRAFFIC" {
+		// TRAFFIC: use source_instagram_media_id + object_story_spec with page_id + link_data
+		pageID, err := resolveFacebookPageID(adsCreds.Token, igCreds.AccountID)
+		if err != nil {
+			slog.Error("integrated_publish_resolve_page_id_error", "id", pub.ID.Hex(), "error", err)
+			ipUpdateStatus(ctx, pub.ID, "failed", "Could not resolve Facebook Page ID: "+err.Error(), "ads")
+			return
+		}
 		linkURL := pub.Campaign.Creative.LinkURL
 		if linkURL == "" {
 			linkURL = "https://ig.me/" + mediaID
@@ -431,20 +503,35 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 		if cta == "" {
 			cta = "LEARN_MORE"
 		}
-		ctaJSON, _ := json.Marshal(map[string]interface{}{
-			"type":  cta,
-			"value": map[string]string{"link": linkURL},
-		})
-		creativeParams.Set("call_to_action", string(ctaJSON))
+
+		creativeParams.Set("source_instagram_media_id", mediaID)
+		spec := map[string]interface{}{
+			"page_id": pageID,
+			"link_data": map[string]interface{}{
+				"link":    linkURL,
+				"message": pub.Caption,
+				"call_to_action": map[string]interface{}{
+					"type":  cta,
+					"value": map[string]string{"link": linkURL},
+				},
+			},
+		}
+		specJSON, _ := json.Marshal(spec)
+		creativeParams.Set("object_story_spec", string(specJSON))
 
 		slog.Info("integrated_publish_creative_attempt",
 			"id", pub.ID.Hex(),
-			"approach", "object_story_id+cta",
-			"object_story_id", objectStoryID,
+			"approach", "source_instagram_media_id+link_data",
+			"page_id", pageID,
+			"media_id", mediaID,
 			"link_url", linkURL,
 			"cta", cta,
 		)
 	} else {
+		// ENGAGEMENT / AWARENESS: promote existing post as-is
+		objectStoryID := igCreds.AccountID + "_" + mediaID
+		creativeParams.Set("object_story_id", objectStoryID)
+
 		slog.Info("integrated_publish_creative_attempt",
 			"id", pub.ID.Hex(),
 			"approach", "object_story_id",
