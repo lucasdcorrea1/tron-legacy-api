@@ -977,14 +977,18 @@ func createMediaContainer(accountID, token, imageURL, caption string, isCarousel
 		params["caption"] = caption
 	}
 
+	formValues := url.Values{}
+	for k, v := range params {
+		formValues.Set(k, v)
+	}
+
 	var lastErr error
 	for attempt := 0; attempt < 3; attempt++ {
 		if attempt > 0 {
 			time.Sleep(time.Duration(attempt*5) * time.Second)
 		}
 
-		body, _ := json.Marshal(params)
-		resp, err := http.Post(apiURL, "application/json", bytes.NewReader(body))
+		resp, err := http.PostForm(apiURL, formValues)
 		if err != nil {
 			lastErr = err
 			continue
@@ -1023,15 +1027,13 @@ func createMediaContainer(accountID, token, imageURL, caption string, isCarousel
 func createCarouselContainer(accountID, token string, childIDs []string, caption string) (string, error) {
 	apiURL := fmt.Sprintf("https://graph.facebook.com/v21.0/%s/media", accountID)
 
-	params := map[string]string{
-		"media_type":   "CAROUSEL",
-		"children":     strings.Join(childIDs, ","),
-		"caption":      caption,
-		"access_token": token,
-	}
+	formValues := url.Values{}
+	formValues.Set("media_type", "CAROUSEL")
+	formValues.Set("children", strings.Join(childIDs, ","))
+	formValues.Set("caption", caption)
+	formValues.Set("access_token", token)
 
-	body, _ := json.Marshal(params)
-	resp, err := http.Post(apiURL, "application/json", bytes.NewReader(body))
+	resp, err := http.PostForm(apiURL, formValues)
 	if err != nil {
 		return "", err
 	}
@@ -1089,13 +1091,11 @@ func publishMediaContainer(accountID, token, creationID string) (string, error) 
 
 	apiURL := fmt.Sprintf("https://graph.facebook.com/v21.0/%s/media_publish", accountID)
 
-	params := map[string]string{
-		"creation_id":  creationID,
-		"access_token": token,
-	}
+	formValues := url.Values{}
+	formValues.Set("creation_id", creationID)
+	formValues.Set("access_token", token)
 
-	body, _ := json.Marshal(params)
-	resp, err := http.Post(apiURL, "application/json", bytes.NewReader(body))
+	resp, err := http.PostForm(apiURL, formValues)
 	if err != nil {
 		return "", err
 	}
