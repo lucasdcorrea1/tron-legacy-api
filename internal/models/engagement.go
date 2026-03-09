@@ -62,6 +62,7 @@ type LikeResponse struct {
 type CTAClick struct {
 	ID        primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	PostID    primitive.ObjectID `json:"post_id" bson:"post_id"`
+	OrgID     primitive.ObjectID `json:"org_id" bson:"org_id"`
 	CTA       string             `json:"cta" bson:"cta"`
 	IP        string             `json:"-" bson:"ip,omitempty"`
 	CreatedAt time.Time          `json:"created_at" bson:"created_at"`

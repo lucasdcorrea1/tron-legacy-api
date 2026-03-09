@@ -10,6 +10,7 @@ import (
 type IntegratedPublish struct {
 	ID     primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	UserID primitive.ObjectID `json:"user_id" bson:"user_id"`
+	OrgID  primitive.ObjectID `json:"org_id" bson:"org_id"`
 
 	// Instagram fields
 	Caption   string   `json:"caption" bson:"caption"`

@@ -235,6 +235,7 @@ func CreateMetaAdsCampaign(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	var req models.CreateCampaignRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -294,6 +295,7 @@ func CreateMetaAdsCampaign(w http.ResponseWriter, r *http.Request) {
 	campaign := models.MetaAdsCampaign{
 		ID:                  primitive.NewObjectID(),
 		UserID:              userID,
+		OrgID:               orgID,
 		MetaCampaignID:      metaID,
 		Name:                req.Name,
 		Objective:           req.Objective,
@@ -348,6 +350,7 @@ func UpdateMetaAdsCampaign(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	campaignID := r.PathValue("id")
 	if campaignID == "" {
@@ -402,7 +405,7 @@ func UpdateMetaAdsCampaign(w http.ResponseWriter, r *http.Request) {
 	if req.LifetimeBudget != nil {
 		setFields["lifetime_budget"] = *req.LifetimeBudget
 	}
-	database.MetaAdsCampaigns().UpdateOne(ctx, bson.M{"meta_campaign_id": campaignID}, localUpdate)
+	database.MetaAdsCampaigns().UpdateOne(ctx, bson.M{"meta_campaign_id": campaignID, "org_id": orgID}, localUpdate)
 
 	json.NewEncoder(w).Encode(map[string]string{"message": "Campaign updated"})
 }
@@ -412,6 +415,7 @@ func DeleteMetaAdsCampaign(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	campaignID := r.PathValue("id")
 	if campaignID == "" {
@@ -427,7 +431,7 @@ func DeleteMetaAdsCampaign(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	database.MetaAdsCampaigns().DeleteOne(ctx, bson.M{"meta_campaign_id": campaignID})
+	database.MetaAdsCampaigns().DeleteOne(ctx, bson.M{"meta_campaign_id": campaignID, "org_id": orgID})
 
 	json.NewEncoder(w).Encode(map[string]string{"message": "Campaign deleted"})
 }
@@ -437,6 +441,7 @@ func UpdateMetaAdsCampaignStatus(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	campaignID := r.PathValue("id")
 	if campaignID == "" {
@@ -467,7 +472,7 @@ func UpdateMetaAdsCampaignStatus(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	database.MetaAdsCampaigns().UpdateOne(ctx,
-		bson.M{"meta_campaign_id": campaignID},
+		bson.M{"meta_campaign_id": campaignID, "org_id": orgID},
 		bson.M{"$set": bson.M{"status": req.Status, "updated_at": time.Now()}},
 	)
 
@@ -513,6 +518,7 @@ func CreateMetaAdsAdSet(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	var req models.CreateAdSetRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -574,6 +580,7 @@ func CreateMetaAdsAdSet(w http.ResponseWriter, r *http.Request) {
 	adset := models.MetaAdsAdSet{
 		ID:               primitive.NewObjectID(),
 		UserID:           userID,
+		OrgID:            orgID,
 		MetaAdSetID:      metaID,
 		CampaignID:       req.CampaignID,
 		Name:             req.Name,
@@ -630,6 +637,7 @@ func UpdateMetaAdsAdSet(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	adsetID := r.PathValue("id")
 	if adsetID == "" {
@@ -679,7 +687,7 @@ func UpdateMetaAdsAdSet(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	database.MetaAdsAdSets().UpdateOne(ctx,
-		bson.M{"meta_adset_id": adsetID},
+		bson.M{"meta_adset_id": adsetID, "org_id": orgID},
 		bson.M{"$set": bson.M{"updated_at": time.Now()}},
 	)
 
@@ -691,6 +699,7 @@ func DeleteMetaAdsAdSet(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	adsetID := r.PathValue("id")
 	if adsetID == "" {
@@ -706,7 +715,7 @@ func DeleteMetaAdsAdSet(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	database.MetaAdsAdSets().DeleteOne(ctx, bson.M{"meta_adset_id": adsetID})
+	database.MetaAdsAdSets().DeleteOne(ctx, bson.M{"meta_adset_id": adsetID, "org_id": orgID})
 
 	json.NewEncoder(w).Encode(map[string]string{"message": "Ad set deleted"})
 }
@@ -716,6 +725,7 @@ func UpdateMetaAdsAdSetStatus(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	adsetID := r.PathValue("id")
 	if adsetID == "" {
@@ -746,7 +756,7 @@ func UpdateMetaAdsAdSetStatus(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	database.MetaAdsAdSets().UpdateOne(ctx,
-		bson.M{"meta_adset_id": adsetID},
+		bson.M{"meta_adset_id": adsetID, "org_id": orgID},
 		bson.M{"$set": bson.M{"status": req.Status, "updated_at": time.Now()}},
 	)
 
@@ -791,6 +801,7 @@ func CreateMetaAdsAd(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	var req models.CreateAdRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -850,6 +861,7 @@ func CreateMetaAdsAd(w http.ResponseWriter, r *http.Request) {
 	ad := models.MetaAdsAd{
 		ID:        primitive.NewObjectID(),
 		UserID:    userID,
+		OrgID:     orgID,
 		MetaAdID:  metaAdID,
 		AdSetID:   req.AdSetID,
 		Name:      req.Name,
@@ -978,6 +990,7 @@ func UpdateMetaAdsAd(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	adID := r.PathValue("id")
 	if adID == "" {
@@ -1008,7 +1021,7 @@ func UpdateMetaAdsAd(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	database.MetaAdsAds().UpdateOne(ctx,
-		bson.M{"meta_ad_id": adID},
+		bson.M{"meta_ad_id": adID, "org_id": orgID},
 		bson.M{"$set": bson.M{"updated_at": time.Now()}},
 	)
 
@@ -1020,6 +1033,7 @@ func DeleteMetaAdsAd(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	adID := r.PathValue("id")
 	if adID == "" {
@@ -1035,7 +1049,7 @@ func DeleteMetaAdsAd(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	database.MetaAdsAds().DeleteOne(ctx, bson.M{"meta_ad_id": adID})
+	database.MetaAdsAds().DeleteOne(ctx, bson.M{"meta_ad_id": adID, "org_id": orgID})
 
 	json.NewEncoder(w).Encode(map[string]string{"message": "Ad deleted"})
 }
@@ -1045,6 +1059,7 @@ func UpdateMetaAdsAdStatus(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	adID := r.PathValue("id")
 	if adID == "" {
@@ -1075,7 +1090,7 @@ func UpdateMetaAdsAdStatus(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	database.MetaAdsAds().UpdateOne(ctx,
-		bson.M{"meta_ad_id": adID},
+		bson.M{"meta_ad_id": adID, "org_id": orgID},
 		bson.M{"$set": bson.M{"status": req.Status, "updated_at": time.Now()}},
 	)
 
@@ -1366,12 +1381,13 @@ func ListMetaAdsPresets(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	cursor, err := database.MetaAdsTargetingPresets().Find(ctx,
-		bson.M{"user_id": userID},
+		bson.M{"org_id": orgID},
 		options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}}),
 	)
 	if err != nil {
@@ -1399,6 +1415,7 @@ func CreateMetaAdsPreset(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	var req models.CreateTargetingPresetRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -1417,6 +1434,7 @@ func CreateMetaAdsPreset(w http.ResponseWriter, r *http.Request) {
 	preset := models.TargetingPreset{
 		ID:        primitive.NewObjectID(),
 		UserID:    userID,
+		OrgID:     orgID,
 		Name:      req.Name,
 		Targeting: req.Targeting,
 		CreatedAt: time.Now(),
@@ -1438,6 +1456,7 @@ func DeleteMetaAdsPreset(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	presetID := r.PathValue("id")
 	oid, err := primitive.ObjectIDFromHex(presetID)
@@ -1449,7 +1468,7 @@ func DeleteMetaAdsPreset(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	result, err := database.MetaAdsTargetingPresets().DeleteOne(ctx, bson.M{"_id": oid, "user_id": userID})
+	result, err := database.MetaAdsTargetingPresets().DeleteOne(ctx, bson.M{"_id": oid, "org_id": orgID})
 	if err != nil {
 		http.Error(w, "Error deleting preset", http.StatusInternalServerError)
 		return
@@ -1473,12 +1492,13 @@ func ListMetaAdsTemplates(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	cursor, err := database.MetaAdsCampaignTemplates().Find(ctx,
-		bson.M{"user_id": userID},
+		bson.M{"org_id": orgID},
 		options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}}),
 	)
 	if err != nil {
@@ -1506,6 +1526,7 @@ func CreateMetaAdsTemplate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	var req models.CreateCampaignTemplateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -1524,6 +1545,7 @@ func CreateMetaAdsTemplate(w http.ResponseWriter, r *http.Request) {
 	tpl := models.CampaignTemplate{
 		ID:               primitive.NewObjectID(),
 		UserID:           userID,
+		OrgID:            orgID,
 		Name:             req.Name,
 		Objective:        req.Objective,
 		BuyingType:       req.BuyingType,
@@ -1552,6 +1574,7 @@ func DeleteMetaAdsTemplate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	tplID := r.PathValue("id")
 	oid, err := primitive.ObjectIDFromHex(tplID)
@@ -1563,7 +1586,7 @@ func DeleteMetaAdsTemplate(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	result, err := database.MetaAdsCampaignTemplates().DeleteOne(ctx, bson.M{"_id": oid, "user_id": userID})
+	result, err := database.MetaAdsCampaignTemplates().DeleteOne(ctx, bson.M{"_id": oid, "org_id": orgID})
 	if err != nil {
 		http.Error(w, "Error deleting template", http.StatusInternalServerError)
 		return
@@ -1587,12 +1610,13 @@ func ListMetaAdsBudgetAlerts(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	cursor, err := database.MetaAdsBudgetAlerts().Find(ctx,
-		bson.M{"user_id": userID},
+		bson.M{"org_id": orgID},
 		options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}}),
 	)
 	if err != nil {
@@ -1620,6 +1644,7 @@ func CreateMetaAdsBudgetAlert(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	var req models.CreateBudgetAlertRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -1639,6 +1664,7 @@ func CreateMetaAdsBudgetAlert(w http.ResponseWriter, r *http.Request) {
 	alert := models.BudgetAlert{
 		ID:         primitive.NewObjectID(),
 		UserID:     userID,
+		OrgID:      orgID,
 		CampaignID: req.CampaignID,
 		AlertType:  req.AlertType,
 		Threshold:  req.Threshold,
@@ -1663,6 +1689,7 @@ func UpdateMetaAdsBudgetAlert(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	alertID := r.PathValue("id")
 	oid, err := primitive.ObjectIDFromHex(alertID)
@@ -1693,7 +1720,7 @@ func UpdateMetaAdsBudgetAlert(w http.ResponseWriter, r *http.Request) {
 		setFields["active"] = *req.Active
 	}
 
-	result, err := database.MetaAdsBudgetAlerts().UpdateOne(ctx, bson.M{"_id": oid, "user_id": userID}, update)
+	result, err := database.MetaAdsBudgetAlerts().UpdateOne(ctx, bson.M{"_id": oid, "org_id": orgID}, update)
 	if err != nil {
 		http.Error(w, "Error updating alert", http.StatusInternalServerError)
 		return
@@ -1713,6 +1740,7 @@ func DeleteMetaAdsBudgetAlert(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	alertID := r.PathValue("id")
 	oid, err := primitive.ObjectIDFromHex(alertID)
@@ -1724,7 +1752,7 @@ func DeleteMetaAdsBudgetAlert(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	result, err := database.MetaAdsBudgetAlerts().DeleteOne(ctx, bson.M{"_id": oid, "user_id": userID})
+	result, err := database.MetaAdsBudgetAlerts().DeleteOne(ctx, bson.M{"_id": oid, "org_id": orgID})
 	if err != nil {
 		http.Error(w, "Error deleting alert", http.StatusInternalServerError)
 		return

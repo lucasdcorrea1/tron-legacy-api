@@ -14,10 +14,14 @@ type contextKey string
 
 const UserIDKey contextKey = "userID"
 
+// orgIDClaimKey stores the raw org_id string from JWT claims before validation.
+const orgIDClaimKey contextKey = "orgIDClaim"
+
 // Claims represents JWT token claims
 type Claims struct {
 	UserID string `json:"user_id"`
 	Email  string `json:"email"`
+	OrgID  string `json:"org_id,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -64,6 +68,12 @@ func Auth(next http.Handler) http.Handler {
 
 		// Inject userID into context
 		ctx := context.WithValue(r.Context(), UserIDKey, userID)
+
+		// Inject org_id claim (raw string) for RequireOrg to validate
+		if claims.OrgID != "" {
+			ctx = context.WithValue(ctx, orgIDClaimKey, claims.OrgID)
+		}
+
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -100,6 +110,9 @@ func OptionalAuth(next http.Handler) http.Handler {
 		}
 
 		ctx := context.WithValue(r.Context(), UserIDKey, userID)
+		if claims.OrgID != "" {
+			ctx = context.WithValue(ctx, orgIDClaimKey, claims.OrgID)
+		}
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

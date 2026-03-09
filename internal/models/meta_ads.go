@@ -12,6 +12,7 @@ import (
 type MetaAdsConfig struct {
 	ID              primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	UserID          primitive.ObjectID `json:"user_id" bson:"user_id"`
+	OrgID           primitive.ObjectID `json:"org_id" bson:"org_id"`
 	AdAccountID     string             `json:"ad_account_id" bson:"ad_account_id"`
 	BusinessID      string             `json:"business_id,omitempty" bson:"business_id,omitempty"`
 	AccessTokenEnc  string             `json:"-" bson:"access_token_enc"` // never sent to client
@@ -36,6 +37,7 @@ type MetaAdsConfigResponse struct {
 type MetaAdsCampaign struct {
 	ID             primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	UserID         primitive.ObjectID `json:"user_id" bson:"user_id"`
+	OrgID          primitive.ObjectID `json:"org_id" bson:"org_id"`
 	MetaCampaignID string             `json:"meta_campaign_id" bson:"meta_campaign_id"`
 	Name           string             `json:"name" bson:"name"`
 	Objective      string             `json:"objective" bson:"objective"`
@@ -77,6 +79,7 @@ type UpdateStatusRequest struct {
 type MetaAdsAdSet struct {
 	ID             primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	UserID         primitive.ObjectID `json:"user_id" bson:"user_id"`
+	OrgID          primitive.ObjectID `json:"org_id" bson:"org_id"`
 	MetaAdSetID    string             `json:"meta_adset_id" bson:"meta_adset_id"`
 	CampaignID     string             `json:"campaign_id" bson:"campaign_id"` // Meta campaign ID
 	Name           string             `json:"name" bson:"name"`
@@ -151,6 +154,7 @@ type UpdateAdSetRequest struct {
 type MetaAdsAd struct {
 	ID          primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	UserID      primitive.ObjectID `json:"user_id" bson:"user_id"`
+	OrgID       primitive.ObjectID `json:"org_id" bson:"org_id"`
 	MetaAdID    string             `json:"meta_ad_id" bson:"meta_ad_id"`
 	AdSetID     string             `json:"adset_id" bson:"adset_id"` // Meta adset ID
 	Name        string             `json:"name" bson:"name"`
@@ -200,6 +204,7 @@ type UpdateAdRequest struct {
 type MetaAdsInsight struct {
 	ID           primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	UserID       primitive.ObjectID `json:"user_id" bson:"user_id"`
+	OrgID        primitive.ObjectID `json:"org_id" bson:"org_id"`
 	ObjectID     string             `json:"object_id" bson:"object_id"` // campaign/adset/ad ID
 	Level        string             `json:"level" bson:"level"`         // "account", "campaign", "adset", "ad"
 	DateStart    string             `json:"date_start" bson:"date_start"`
@@ -223,6 +228,7 @@ type MetaAdsInsight struct {
 type TargetingPreset struct {
 	ID        primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	UserID    primitive.ObjectID `json:"user_id" bson:"user_id"`
+	OrgID     primitive.ObjectID `json:"org_id" bson:"org_id"`
 	Name      string             `json:"name" bson:"name"`
 	Targeting AdSetTargeting     `json:"targeting" bson:"targeting"`
 	CreatedAt time.Time          `json:"created_at" bson:"created_at"`
@@ -238,6 +244,7 @@ type CreateTargetingPresetRequest struct {
 type CampaignTemplate struct {
 	ID               primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	UserID           primitive.ObjectID `json:"user_id" bson:"user_id"`
+	OrgID            primitive.ObjectID `json:"org_id" bson:"org_id"`
 	Name             string             `json:"name" bson:"name"`
 	Objective        string             `json:"objective" bson:"objective"`
 	BuyingType       string             `json:"buying_type,omitempty" bson:"buying_type,omitempty"`
@@ -267,6 +274,7 @@ type CreateCampaignTemplateRequest struct {
 type BudgetAlert struct {
 	ID          primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	UserID      primitive.ObjectID `json:"user_id" bson:"user_id"`
+	OrgID       primitive.ObjectID `json:"org_id" bson:"org_id"`
 	CampaignID  string             `json:"campaign_id,omitempty" bson:"campaign_id,omitempty"` // empty = account-level
 	AlertType   string             `json:"alert_type" bson:"alert_type"`                       // "daily_spend", "total_spend"
 	Threshold   float64            `json:"threshold" bson:"threshold"`                         // in currency

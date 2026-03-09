@@ -20,6 +20,8 @@ import (
 // GetAutoReplyAnalytics returns aggregated metrics for auto-reply.
 // GET /api/v1/admin/instagram/analytics/autoreply?days=30
 func GetAutoReplyAnalytics(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrgID(r)
+
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
 
@@ -29,7 +31,7 @@ func GetAutoReplyAnalytics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	since := time.Now().AddDate(0, 0, -days)
-	baseFilter := bson.M{"created_at": bson.M{"$gte": since}}
+	baseFilter := bson.M{"org_id": orgID, "created_at": bson.M{"$gte": since}}
 
 	col := database.AutoReplyLogs()
 
@@ -45,16 +47,16 @@ func GetAutoReplyAnalytics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Top rules (sent only)
-	topRules := aggregateTopRules(ctx, since)
+	topRules := aggregateTopRules(ctx, since, orgID)
 
 	// Hourly distribution (sent only)
-	hourlyDist := aggregateHourly(ctx, since)
+	hourlyDist := aggregateHourly(ctx, since, orgID)
 
 	// Daily trend
-	dailyTrend := aggregateDaily(ctx, since)
+	dailyTrend := aggregateDaily(ctx, since, orgID)
 
 	// Top keywords from rules that were triggered
-	topKeywords := aggregateTopKeywords(ctx, since)
+	topKeywords := aggregateTopKeywords(ctx, since, orgID)
 
 	json.NewEncoder(w).Encode(models.AutoReplyAnalytics{
 		TotalSent:    totalSent,
@@ -68,9 +70,9 @@ func GetAutoReplyAnalytics(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func aggregateTopRules(ctx context.Context, since time.Time) []models.RuleCount {
+func aggregateTopRules(ctx context.Context, since time.Time, orgID primitive.ObjectID) []models.RuleCount {
 	pipeline := []bson.M{
-		{"$match": bson.M{"created_at": bson.M{"$gte": since}, "status": "sent"}},
+		{"$match": bson.M{"org_id": orgID, "created_at": bson.M{"$gte": since}, "status": "sent"}},
 		{"$group": bson.M{"_id": "$rule_name", "count": bson.M{"$sum": 1}}},
 		{"$sort": bson.M{"count": -1}},
 		{"$limit": 10},
@@ -89,9 +91,9 @@ func aggregateTopRules(ctx context.Context, since time.Time) []models.RuleCount 
 	return results
 }
 
-func aggregateHourly(ctx context.Context, since time.Time) []models.HourlyCount {
+func aggregateHourly(ctx context.Context, since time.Time, orgID primitive.ObjectID) []models.HourlyCount {
 	pipeline := []bson.M{
-		{"$match": bson.M{"created_at": bson.M{"$gte": since}, "status": "sent"}},
+		{"$match": bson.M{"org_id": orgID, "created_at": bson.M{"$gte": since}, "status": "sent"}},
 		{"$group": bson.M{
 			"_id":   bson.M{"$hour": "$created_at"},
 			"count": bson.M{"$sum": 1},
@@ -112,9 +114,9 @@ func aggregateHourly(ctx context.Context, since time.Time) []models.HourlyCount 
 	return results
 }
 
-func aggregateDaily(ctx context.Context, since time.Time) []models.DailyTrend {
+func aggregateDaily(ctx context.Context, since time.Time, orgID primitive.ObjectID) []models.DailyTrend {
 	pipeline := []bson.M{
-		{"$match": bson.M{"created_at": bson.M{"$gte": since}}},
+		{"$match": bson.M{"org_id": orgID, "created_at": bson.M{"$gte": since}}},
 		{"$group": bson.M{
 			"_id": bson.M{"$dateToString": bson.M{"format": "%Y-%m-%d", "date": "$created_at"}},
 			"sent": bson.M{"$sum": bson.M{"$cond": []interface{}{
@@ -140,10 +142,10 @@ func aggregateDaily(ctx context.Context, since time.Time) []models.DailyTrend {
 	return results
 }
 
-func aggregateTopKeywords(ctx context.Context, since time.Time) []models.KeywordCount {
+func aggregateTopKeywords(ctx context.Context, since time.Time, orgID primitive.ObjectID) []models.KeywordCount {
 	// Get all rules that were triggered in the period, then count keywords
 	pipeline := []bson.M{
-		{"$match": bson.M{"created_at": bson.M{"$gte": since}, "status": "sent"}},
+		{"$match": bson.M{"org_id": orgID, "created_at": bson.M{"$gte": since}, "status": "sent"}},
 		{"$group": bson.M{"_id": "$rule_id", "count": bson.M{"$sum": 1}}},
 	}
 	cursor, err := database.AutoReplyLogs().Aggregate(ctx, pipeline)

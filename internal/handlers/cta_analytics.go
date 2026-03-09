@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/tron-legacy/api/internal/database"
+	"github.com/tron-legacy/api/internal/middleware"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
@@ -48,6 +50,8 @@ func GetCTAAnalytics(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
 
+	orgID := middleware.GetOrgID(r)
+
 	days, _ := strconv.Atoi(r.URL.Query().Get("days"))
 	if days < 1 || days > 365 {
 		days = 30
@@ -59,22 +63,36 @@ func GetCTAAnalytics(w http.ResponseWriter, r *http.Request) {
 
 	clicksCol := database.CTAClicks()
 
+	// Build org-scoped filter for CTA clicks
+	clickFilter := bson.M{}
+	if orgID != primitive.NilObjectID {
+		clickFilter["org_id"] = orgID
+	}
+
 	// Total clicks (all time)
-	totalClicks, _ := clicksCol.CountDocuments(ctx, bson.M{})
+	totalClicks, _ := clicksCol.CountDocuments(ctx, clickFilter)
 
 	// Clicks today
-	clicksToday, _ := clicksCol.CountDocuments(ctx, bson.M{
-		"created_at": bson.M{"$gte": todayStart},
-	})
+	clicksTodayFilter := bson.M{"created_at": bson.M{"$gte": todayStart}}
+	if orgID != primitive.NilObjectID {
+		clicksTodayFilter["org_id"] = orgID
+	}
+	clicksToday, _ := clicksCol.CountDocuments(ctx, clicksTodayFilter)
 
 	// Clicks this week
-	clicksWeek, _ := clicksCol.CountDocuments(ctx, bson.M{
-		"created_at": bson.M{"$gte": weekStart},
-	})
+	clicksWeekFilter := bson.M{"created_at": bson.M{"$gte": weekStart}}
+	if orgID != primitive.NilObjectID {
+		clicksWeekFilter["org_id"] = orgID
+	}
+	clicksWeek, _ := clicksCol.CountDocuments(ctx, clicksWeekFilter)
 
-	// Top posts by cta_click_count
+	// Top posts by cta_click_count (scoped to org)
+	postsFilter := bson.M{"cta_click_count": bson.M{"$gt": 0}}
+	if orgID != primitive.NilObjectID {
+		postsFilter["org_id"] = orgID
+	}
 	postsCursor, err := database.Posts().Find(ctx,
-		bson.M{"cta_click_count": bson.M{"$gt": 0}},
+		postsFilter,
 		options.Find().
 			SetSort(bson.D{{Key: "cta_click_count", Value: -1}}).
 			SetLimit(20).
@@ -116,9 +134,9 @@ func GetCTAAnalytics(w http.ResponseWriter, r *http.Request) {
 		topPosts = []ctaPostStat{}
 	}
 
-	// Recent clicks (last 50)
+	// Recent clicks (last 50, scoped to org)
 	clicksCursor, err := clicksCol.Find(ctx,
-		bson.M{},
+		clickFilter,
 		options.Find().
 			SetSort(bson.D{{Key: "created_at", Value: -1}}).
 			SetLimit(50),
@@ -208,14 +226,18 @@ func GetCTAAnalytics(w http.ResponseWriter, r *http.Request) {
 		recentClicks = []ctaRecentClick{}
 	}
 
-	// Daily clicks for the period
+	// Daily clicks for the period (scoped to org)
 	var dailyClicks []dailyCount
 	for i := days - 1; i >= 0; i-- {
 		dayStart := todayStart.AddDate(0, 0, -i)
 		dayEnd := dayStart.Add(24 * time.Hour)
-		count, _ := clicksCol.CountDocuments(ctx, bson.M{
+		dayFilter := bson.M{
 			"created_at": bson.M{"$gte": dayStart, "$lt": dayEnd},
-		})
+		}
+		if orgID != primitive.NilObjectID {
+			dayFilter["org_id"] = orgID
+		}
+		count, _ := clicksCol.CountDocuments(ctx, dayFilter)
 		if count > 0 || i < 14 { // Always show last 14 days, others only if have data
 			dailyClicks = append(dailyClicks, dailyCount{
 				Date:  dayStart.Format("02/01"),

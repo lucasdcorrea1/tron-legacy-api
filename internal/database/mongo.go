@@ -144,6 +144,24 @@ func IntegratedPublishes() *mongo.Collection {
 	return DB.Collection("integrated_publishes")
 }
 
+// ── Multi-tenant collections ─────────────────────────────────────────
+
+func Organizations() *mongo.Collection {
+	return DB.Collection("organizations")
+}
+
+func OrgMemberships() *mongo.Collection {
+	return DB.Collection("org_memberships")
+}
+
+func OrgInvitations() *mongo.Collection {
+	return DB.Collection("org_invitations")
+}
+
+func Subscriptions() *mongo.Collection {
+	return DB.Collection("subscriptions")
+}
+
 // EnsureIndexes creates required indexes for engagement collections
 func EnsureIndexes() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -208,9 +226,9 @@ func EnsureIndexes() error {
 		return err
 	}
 
-	// instagram_schedules: index on {user_id, created_at} for user listing
+	// instagram_schedules: index on {org_id, created_at} for org listing
 	_, err = InstagramSchedules().Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "created_at", Value: -1}},
+		Keys: bson.D{{Key: "org_id", Value: 1}, {Key: "created_at", Value: -1}},
 	})
 	if err != nil {
 		return err
@@ -250,9 +268,9 @@ func EnsureIndexes() error {
 		return err
 	}
 
-	// auto_reply_rules: compound index on {user_id, active} for active rules lookup
+	// auto_reply_rules: compound index on {org_id, active} for active rules lookup
 	_, err = AutoReplyRules().Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "active", Value: 1}},
+		Keys: bson.D{{Key: "org_id", Value: 1}, {Key: "active", Value: 1}},
 	})
 	if err != nil {
 		return err
@@ -326,57 +344,57 @@ func EnsureIndexes() error {
 		return err
 	}
 
-	// meta_ads_campaigns: index on user_id for listing
+	// meta_ads_campaigns: index on org_id for listing
 	_, err = MetaAdsCampaigns().Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "created_at", Value: -1}},
+		Keys: bson.D{{Key: "org_id", Value: 1}, {Key: "created_at", Value: -1}},
 	})
 	if err != nil {
 		return err
 	}
 
-	// meta_ads_adsets: index on {user_id, campaign_id}
+	// meta_ads_adsets: index on {org_id, campaign_id}
 	_, err = MetaAdsAdSets().Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "campaign_id", Value: 1}},
+		Keys: bson.D{{Key: "org_id", Value: 1}, {Key: "campaign_id", Value: 1}},
 	})
 	if err != nil {
 		return err
 	}
 
-	// meta_ads_ads: index on {user_id, adset_id}
+	// meta_ads_ads: index on {org_id, adset_id}
 	_, err = MetaAdsAds().Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "adset_id", Value: 1}},
+		Keys: bson.D{{Key: "org_id", Value: 1}, {Key: "adset_id", Value: 1}},
 	})
 	if err != nil {
 		return err
 	}
 
-	// meta_ads_targeting_presets: index on user_id
+	// meta_ads_targeting_presets: index on org_id
 	_, err = MetaAdsTargetingPresets().Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.D{{Key: "user_id", Value: 1}},
+		Keys: bson.D{{Key: "org_id", Value: 1}},
 	})
 	if err != nil {
 		return err
 	}
 
-	// meta_ads_campaign_templates: index on user_id
+	// meta_ads_campaign_templates: index on org_id
 	_, err = MetaAdsCampaignTemplates().Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.D{{Key: "user_id", Value: 1}},
+		Keys: bson.D{{Key: "org_id", Value: 1}},
 	})
 	if err != nil {
 		return err
 	}
 
-	// meta_ads_budget_alerts: index on {user_id, active}
+	// meta_ads_budget_alerts: index on {org_id, active}
 	_, err = MetaAdsBudgetAlerts().Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "active", Value: 1}},
+		Keys: bson.D{{Key: "org_id", Value: 1}, {Key: "active", Value: 1}},
 	})
 	if err != nil {
 		return err
 	}
 
-	// auto_boost_rules: compound index on {user_id, active} for active rules lookup
+	// auto_boost_rules: compound index on {org_id, active} for active rules lookup
 	_, err = AutoBoostRules().Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "active", Value: 1}},
+		Keys: bson.D{{Key: "org_id", Value: 1}, {Key: "active", Value: 1}},
 	})
 	if err != nil {
 		return err
@@ -390,9 +408,9 @@ func EnsureIndexes() error {
 		return err
 	}
 
-	// auto_boost_logs: index on {user_id, created_at} for listing history
+	// auto_boost_logs: index on {org_id, created_at} for listing history
 	_, err = AutoBoostLogs().Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "created_at", Value: -1}},
+		Keys: bson.D{{Key: "org_id", Value: 1}, {Key: "created_at", Value: -1}},
 	})
 	if err != nil {
 		return err
@@ -415,9 +433,79 @@ func EnsureIndexes() error {
 		return err
 	}
 
-	// integrated_publishes: index on {user_id, created_at} for user listing
+	// integrated_publishes: index on {org_id, created_at} for org listing
 	_, err = IntegratedPublishes().Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "created_at", Value: -1}},
+		Keys: bson.D{{Key: "org_id", Value: 1}, {Key: "created_at", Value: -1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// ── Multi-tenant indexes ─────────────────────────────────────────
+
+	// organizations: unique index on slug
+	_, err = Organizations().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "slug", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	})
+	if err != nil {
+		return err
+	}
+
+	// organizations: index on owner_user_id
+	_, err = Organizations().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "owner_user_id", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// org_memberships: unique index on {org_id, user_id}
+	_, err = OrgMemberships().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "org_id", Value: 1}, {Key: "user_id", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	})
+	if err != nil {
+		return err
+	}
+
+	// org_memberships: index on user_id for listing user's orgs
+	_, err = OrgMemberships().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "user_id", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// org_invitations: index on token for fast lookup
+	_, err = OrgInvitations().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "token", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// org_invitations: TTL index — auto-delete expired invitations
+	_, err = OrgInvitations().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "expires_at", Value: 1}},
+		Options: options.Index().SetExpireAfterSeconds(0),
+	})
+	if err != nil {
+		return err
+	}
+
+	// org_invitations: index on {org_id, email} for duplicate check
+	_, err = OrgInvitations().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "org_id", Value: 1}, {Key: "email", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// subscriptions: unique index on org_id (one subscription per org)
+	_, err = Subscriptions().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "org_id", Value: 1}},
+		Options: options.Index().SetUnique(true),
 	})
 	if err != nil {
 		return err

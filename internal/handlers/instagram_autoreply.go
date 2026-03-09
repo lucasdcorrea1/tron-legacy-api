@@ -19,6 +19,7 @@ import (
 // CreateAutoReplyRule creates a new auto-reply rule.
 func CreateAutoReplyRule(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
+	orgID := middleware.GetOrgID(r)
 
 	var req models.CreateAutoReplyRuleRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -47,6 +48,7 @@ func CreateAutoReplyRule(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	rule := models.AutoReplyRule{
 		UserID:          userID,
+		OrgID:           orgID,
 		Name:            req.Name,
 		TriggerType:     req.TriggerType,
 		Keywords:        req.Keywords,
@@ -75,14 +77,14 @@ func CreateAutoReplyRule(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(rule)
 }
 
-// ListAutoReplyRules lists all rules for the current user.
+// ListAutoReplyRules lists all rules for the current org.
 func ListAutoReplyRules(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r)
+	orgID := middleware.GetOrgID(r)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	filter := bson.M{"user_id": userID}
+	filter := bson.M{"org_id": orgID}
 
 	total, err := database.AutoReplyRules().CountDocuments(ctx, filter)
 	if err != nil {
@@ -120,7 +122,7 @@ func ListAutoReplyRules(w http.ResponseWriter, r *http.Request) {
 
 // UpdateAutoReplyRule updates an existing rule.
 func UpdateAutoReplyRule(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r)
+	orgID := middleware.GetOrgID(r)
 	ruleID, err := primitive.ObjectIDFromHex(r.PathValue("id"))
 	if err != nil {
 		http.Error(w, `{"message":"ID inválido"}`, http.StatusBadRequest)
@@ -160,7 +162,7 @@ func UpdateAutoReplyRule(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	filter := bson.M{"_id": ruleID, "user_id": userID}
+	filter := bson.M{"_id": ruleID, "org_id": orgID}
 	result, err := database.AutoReplyRules().UpdateOne(ctx, filter, bson.M{"$set": update})
 	if err != nil {
 		slog.Error("update_autoreply_rule_error", "error", err)
@@ -183,7 +185,7 @@ func UpdateAutoReplyRule(w http.ResponseWriter, r *http.Request) {
 
 // ToggleAutoReplyRule toggles the active state of a rule.
 func ToggleAutoReplyRule(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r)
+	orgID := middleware.GetOrgID(r)
 	ruleID, err := primitive.ObjectIDFromHex(r.PathValue("id"))
 	if err != nil {
 		http.Error(w, `{"message":"ID inválido"}`, http.StatusBadRequest)
@@ -195,7 +197,7 @@ func ToggleAutoReplyRule(w http.ResponseWriter, r *http.Request) {
 
 	// Find current state
 	var rule models.AutoReplyRule
-	err = database.AutoReplyRules().FindOne(ctx, bson.M{"_id": ruleID, "user_id": userID}).Decode(&rule)
+	err = database.AutoReplyRules().FindOne(ctx, bson.M{"_id": ruleID, "org_id": orgID}).Decode(&rule)
 	if err != nil {
 		http.Error(w, `{"message":"Regra não encontrada"}`, http.StatusNotFound)
 		return
@@ -222,7 +224,7 @@ func ToggleAutoReplyRule(w http.ResponseWriter, r *http.Request) {
 
 // DeleteAutoReplyRule deletes a rule.
 func DeleteAutoReplyRule(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r)
+	orgID := middleware.GetOrgID(r)
 	ruleID, err := primitive.ObjectIDFromHex(r.PathValue("id"))
 	if err != nil {
 		http.Error(w, `{"message":"ID inválido"}`, http.StatusBadRequest)
@@ -232,7 +234,7 @@ func DeleteAutoReplyRule(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	result, err := database.AutoReplyRules().DeleteOne(ctx, bson.M{"_id": ruleID, "user_id": userID})
+	result, err := database.AutoReplyRules().DeleteOne(ctx, bson.M{"_id": ruleID, "org_id": orgID})
 	if err != nil {
 		slog.Error("delete_autoreply_rule_error", "error", err)
 		http.Error(w, `{"message":"Erro ao deletar regra"}`, http.StatusInternalServerError)
@@ -250,6 +252,8 @@ func DeleteAutoReplyRule(w http.ResponseWriter, r *http.Request) {
 
 // ListAutoReplyLogs lists auto-reply logs with pagination and optional filters.
 func ListAutoReplyLogs(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrgID(r)
+
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	if page < 1 {
 		page = 1
@@ -262,7 +266,7 @@ func ListAutoReplyLogs(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	filter := bson.M{}
+	filter := bson.M{"org_id": orgID}
 
 	// Optional filters
 	if status := r.URL.Query().Get("status"); status != "" {

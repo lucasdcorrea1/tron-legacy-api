@@ -23,8 +23,8 @@ import (
 // ══════════════════════════════════════════════════════════════════════
 
 func ListAutoBoostRules(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r)
-	if userID == primitive.NilObjectID {
+	orgID := middleware.GetOrgID(r)
+	if orgID == primitive.NilObjectID {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -33,7 +33,7 @@ func ListAutoBoostRules(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	opts := options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}})
-	cursor, err := database.AutoBoostRules().Find(ctx, bson.M{"user_id": userID}, opts)
+	cursor, err := database.AutoBoostRules().Find(ctx, bson.M{"org_id": orgID}, opts)
 	if err != nil {
 		slog.Error("auto_boost_list_rules_error", "error", err)
 		http.Error(w, "Error listing rules", http.StatusInternalServerError)
@@ -57,7 +57,8 @@ func ListAutoBoostRules(w http.ResponseWriter, r *http.Request) {
 
 func CreateAutoBoostRule(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
-	if userID == primitive.NilObjectID {
+	orgID := middleware.GetOrgID(r)
+	if userID == primitive.NilObjectID || orgID == primitive.NilObjectID {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -113,6 +114,7 @@ func CreateAutoBoostRule(w http.ResponseWriter, r *http.Request) {
 	rule := models.AutoBoostRule{
 		ID:               primitive.NewObjectID(),
 		UserID:           userID,
+		OrgID:            orgID,
 		Name:             req.Name,
 		Active:           true,
 		Metric:           req.Metric,
@@ -145,8 +147,8 @@ func CreateAutoBoostRule(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetAutoBoostRule(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r)
-	if userID == primitive.NilObjectID {
+	orgID := middleware.GetOrgID(r)
+	if orgID == primitive.NilObjectID {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -161,7 +163,7 @@ func GetAutoBoostRule(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	var rule models.AutoBoostRule
-	err = database.AutoBoostRules().FindOne(ctx, bson.M{"_id": oid, "user_id": userID}).Decode(&rule)
+	err = database.AutoBoostRules().FindOne(ctx, bson.M{"_id": oid, "org_id": orgID}).Decode(&rule)
 	if err != nil {
 		http.Error(w, "Rule not found", http.StatusNotFound)
 		return
@@ -171,8 +173,8 @@ func GetAutoBoostRule(w http.ResponseWriter, r *http.Request) {
 }
 
 func UpdateAutoBoostRule(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r)
-	if userID == primitive.NilObjectID {
+	orgID := middleware.GetOrgID(r)
+	if orgID == primitive.NilObjectID {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -243,7 +245,7 @@ func UpdateAutoBoostRule(w http.ResponseWriter, r *http.Request) {
 
 	result, err := database.AutoBoostRules().UpdateOne(
 		ctx,
-		bson.M{"_id": oid, "user_id": userID},
+		bson.M{"_id": oid, "org_id": orgID},
 		bson.M{"$set": update},
 	)
 	if err != nil {
@@ -260,8 +262,8 @@ func UpdateAutoBoostRule(w http.ResponseWriter, r *http.Request) {
 }
 
 func ToggleAutoBoostRule(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r)
-	if userID == primitive.NilObjectID {
+	orgID := middleware.GetOrgID(r)
+	if orgID == primitive.NilObjectID {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -285,7 +287,7 @@ func ToggleAutoBoostRule(w http.ResponseWriter, r *http.Request) {
 
 	result, err := database.AutoBoostRules().UpdateOne(
 		ctx,
-		bson.M{"_id": oid, "user_id": userID},
+		bson.M{"_id": oid, "org_id": orgID},
 		bson.M{"$set": bson.M{"active": *req.Active, "updated_at": time.Now()}},
 	)
 	if err != nil {
@@ -302,8 +304,8 @@ func ToggleAutoBoostRule(w http.ResponseWriter, r *http.Request) {
 }
 
 func DeleteAutoBoostRule(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r)
-	if userID == primitive.NilObjectID {
+	orgID := middleware.GetOrgID(r)
+	if orgID == primitive.NilObjectID {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -317,7 +319,7 @@ func DeleteAutoBoostRule(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	result, err := database.AutoBoostRules().DeleteOne(ctx, bson.M{"_id": oid, "user_id": userID})
+	result, err := database.AutoBoostRules().DeleteOne(ctx, bson.M{"_id": oid, "org_id": orgID})
 	if err != nil {
 		slog.Error("auto_boost_delete_rule_error", "error", err)
 		http.Error(w, "Error deleting rule", http.StatusInternalServerError)
@@ -336,13 +338,13 @@ func DeleteAutoBoostRule(w http.ResponseWriter, r *http.Request) {
 // ══════════════════════════════════════════════════════════════════════
 
 func ListAutoBoostLogs(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r)
-	if userID == primitive.NilObjectID {
+	orgID := middleware.GetOrgID(r)
+	if orgID == primitive.NilObjectID {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	filter := bson.M{"user_id": userID}
+	filter := bson.M{"org_id": orgID}
 
 	// Optional filters
 	if ruleID := r.URL.Query().Get("rule_id"); ruleID != "" {
@@ -604,6 +606,7 @@ func processAutoBoostPost(
 			RuleID:      rule.ID,
 			RuleName:    rule.Name,
 			UserID:      userID,
+			OrgID:       rule.OrgID,
 			IGMediaID:   postID,
 			IGPermalink: permalink,
 			IGMediaType: mediaType,
@@ -640,6 +643,7 @@ func processAutoBoostPost(
 			RuleID:       rule.ID,
 			RuleName:     rule.Name,
 			UserID:       userID,
+			OrgID:        rule.OrgID,
 			IGMediaID:    postID,
 			IGPermalink:  permalink,
 			IGMediaType:  mediaType,
@@ -662,6 +666,7 @@ func processAutoBoostPost(
 		RuleID:         rule.ID,
 		RuleName:       rule.Name,
 		UserID:         userID,
+		OrgID:          rule.OrgID,
 		IGMediaID:      postID,
 		IGPermalink:    permalink,
 		IGMediaType:    mediaType,

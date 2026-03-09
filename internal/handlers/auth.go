@@ -102,8 +102,15 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate JWT access token
-	token, err := generateToken(user)
+	// Auto-create organization for the new user
+	orgID, err := CreateOrgForUser(ctx, user.ID, req.Name)
+	if err != nil {
+		slog.Error("register_create_org_error", "error", err, "user_id", user.ID.Hex())
+		// Non-fatal: user is created, they just won't have an org yet
+	}
+
+	// Generate JWT access token with org_id
+	token, err := GenerateTokenWithOrg(user, orgID.Hex())
 	if err != nil {
 		http.Error(w, "Error generating token", http.StatusInternalServerError)
 		return
@@ -129,6 +136,7 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		"user_id", user.ID.Hex(),
 		"email", user.Email,
 		"name", profile.Name,
+		"org_id", orgID.Hex(),
 	)
 
 	w.WriteHeader(http.StatusCreated)
@@ -194,8 +202,15 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate JWT access token
-	token, err := generateToken(user)
+	// Get default org for the user
+	orgID, err := GetDefaultOrgForUser(ctx, user.ID)
+	orgIDStr := ""
+	if err == nil {
+		orgIDStr = orgID.Hex()
+	}
+
+	// Generate JWT access token with org_id
+	token, err := GenerateTokenWithOrg(user, orgIDStr)
 	if err != nil {
 		http.Error(w, "Error generating token", http.StatusInternalServerError)
 		return
@@ -220,6 +235,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	slog.Info("user_login",
 		"user_id", user.ID.Hex(),
 		"email", user.Email,
+		"org_id", orgIDStr,
 	)
 
 	json.NewEncoder(w).Encode(response)
@@ -270,13 +286,14 @@ func Me(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// generateToken creates a JWT access token for the user
-func generateToken(user models.User) (string, error) {
+// GenerateTokenWithOrg creates a JWT access token with org_id claim.
+func GenerateTokenWithOrg(user models.User, orgID string) (string, error) {
 	cfg := config.Get()
 
 	claims := middleware.Claims{
 		UserID: user.ID.Hex(),
 		Email:  user.Email,
+		OrgID:  orgID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(cfg.AccessTokenExpiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -286,6 +303,11 @@ func generateToken(user models.User) (string, error) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(cfg.JWTSecret))
+}
+
+// generateToken creates a JWT access token for the user (backwards compatible).
+func generateToken(user models.User) (string, error) {
+	return GenerateTokenWithOrg(user, "")
 }
 
 // generateRefreshToken creates a random opaque refresh token, stores its SHA-256 hash
@@ -368,8 +390,15 @@ func Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get default org for new token
+	orgID, err := GetDefaultOrgForUser(ctx, stored.UserID)
+	orgIDStr := ""
+	if err == nil {
+		orgIDStr = orgID.Hex()
+	}
+
 	// Issue new access token
-	accessToken, err := generateToken(user)
+	accessToken, err := GenerateTokenWithOrg(user, orgIDStr)
 	if err != nil {
 		http.Error(w, "Error generating token", http.StatusInternalServerError)
 		return

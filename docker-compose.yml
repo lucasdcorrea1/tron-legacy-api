@@ -16,6 +16,9 @@ services:
       - REFRESH_TOKEN_EXPIRY=720h
       - META_APP_ID=${META_APP_ID:-}
       - META_APP_SECRET=${META_APP_SECRET:-}
+      - ASAAS_API_KEY=${ASAAS_API_KEY:-}
+      - ASAAS_SANDBOX=${ASAAS_SANDBOX:-true}
+      - ASAAS_WEBHOOK_TOKEN=${ASAAS_WEBHOOK_TOKEN:-}
     depends_on:
       - mongo
       - redis

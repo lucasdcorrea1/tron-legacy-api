@@ -9,6 +9,7 @@ import (
 // InstagramLead represents a user who interacted via Instagram auto-reply.
 type InstagramLead struct {
 	ID               primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	OrgID            primitive.ObjectID `json:"org_id" bson:"org_id"`
 	SenderIGID       string             `json:"sender_ig_id" bson:"sender_ig_id"`
 	SenderUsername   string             `json:"sender_username" bson:"sender_username"`
 	FirstInteraction time.Time          `json:"first_interaction" bson:"first_interaction"`

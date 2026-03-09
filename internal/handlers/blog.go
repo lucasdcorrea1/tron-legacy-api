@@ -173,6 +173,7 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	var req models.CreatePostRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -209,6 +210,7 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 	post := models.BlogPost{
 		ID:              primitive.NewObjectID(),
 		AuthorID:        userID,
+		OrgID:           orgID,
 		Title:           req.Title,
 		Slug:            slug,
 		Content:         req.Content,
@@ -286,6 +288,7 @@ func UpdatePost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	postIDStr := r.PathValue("id")
 
@@ -298,14 +301,14 @@ func UpdatePost(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Fetch existing post by ObjectID or slug
+	// Fetch existing post by ObjectID or slug, scoped to org
 	var post models.BlogPost
 	var filter bson.M
 	postID, err := primitive.ObjectIDFromHex(postIDStr)
 	if err == nil {
-		filter = bson.M{"_id": postID}
+		filter = bson.M{"_id": postID, "org_id": orgID}
 	} else {
-		filter = bson.M{"slug": postIDStr}
+		filter = bson.M{"slug": postIDStr, "org_id": orgID}
 	}
 	err = database.Posts().FindOne(ctx, filter).Decode(&post)
 	if err != nil {
@@ -425,20 +428,21 @@ func DeletePost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	postIDStr := r.PathValue("id")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Fetch post by ObjectID or slug
+	// Fetch post by ObjectID or slug, scoped to org
 	var post models.BlogPost
 	var filter bson.M
 	postID, err := primitive.ObjectIDFromHex(postIDStr)
 	if err == nil {
-		filter = bson.M{"_id": postID}
+		filter = bson.M{"_id": postID, "org_id": orgID}
 	} else {
-		filter = bson.M{"slug": postIDStr}
+		filter = bson.M{"slug": postIDStr, "org_id": orgID}
 	}
 	err = database.Posts().FindOne(ctx, filter).Decode(&post)
 	if err != nil {
@@ -501,12 +505,17 @@ func MyPosts(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Only superuser sees all posts, everyone else sees only their own
+	// Only superuser sees all org posts, everyone else sees only their own
+	orgID := middleware.GetOrgID(r)
 	filter := bson.M{"author_id": userID}
 	var profile models.Profile
 	if err := database.Profiles().FindOne(ctx, bson.M{"user_id": userID}).Decode(&profile); err == nil {
 		if profile.Role == "superuser" {
-			filter = bson.M{}
+			if orgID != primitive.NilObjectID {
+				filter = bson.M{"org_id": orgID}
+			} else {
+				filter = bson.M{}
+			}
 		}
 	}
 
@@ -566,6 +575,7 @@ func UploadPostImage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	orgID := middleware.GetOrgID(r)
 
 	// Limite de 5MB
 	r.Body = http.MaxBytesReader(w, r.Body, 5<<20)
@@ -636,6 +646,7 @@ func UploadPostImage(w http.ResponseWriter, r *http.Request) {
 		imgDoc := models.BlogImage{
 			ID:         primitive.NewObjectID(),
 			UploaderID: userID,
+			OrgID:      orgID,
 			GroupID:    groupID,
 			SizeLabel:  v.label,
 			Width:      bounds.Dx(),

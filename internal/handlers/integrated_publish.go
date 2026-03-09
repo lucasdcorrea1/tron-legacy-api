@@ -24,7 +24,8 @@ import (
 
 func CreateIntegratedPublish(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
-	if userID == primitive.NilObjectID {
+	orgID := middleware.GetOrgID(r)
+	if userID == primitive.NilObjectID || orgID == primitive.NilObjectID {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -114,6 +115,7 @@ func CreateIntegratedPublish(w http.ResponseWriter, r *http.Request) {
 	pub := models.IntegratedPublish{
 		ID:          primitive.NewObjectID(),
 		UserID:      userID,
+		OrgID:       orgID,
 		Caption:     req.Caption,
 		MediaType:   req.MediaType,
 		ImageIDs:    req.ImageIDs,
@@ -141,8 +143,8 @@ func CreateIntegratedPublish(w http.ResponseWriter, r *http.Request) {
 }
 
 func ListIntegratedPublishes(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r)
-	if userID == primitive.NilObjectID {
+	orgID := middleware.GetOrgID(r)
+	if orgID == primitive.NilObjectID {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -156,7 +158,7 @@ func ListIntegratedPublishes(w http.ResponseWriter, r *http.Request) {
 		limit = 10
 	}
 
-	filter := bson.M{"user_id": userID}
+	filter := bson.M{"org_id": orgID}
 	if status := r.URL.Query().Get("status"); status != "" {
 		filter["status"] = status
 	}
@@ -203,8 +205,8 @@ func ListIntegratedPublishes(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetIntegratedPublish(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r)
-	if userID == primitive.NilObjectID {
+	orgID := middleware.GetOrgID(r)
+	if orgID == primitive.NilObjectID {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -219,7 +221,7 @@ func GetIntegratedPublish(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	var pub models.IntegratedPublish
-	err = database.IntegratedPublishes().FindOne(ctx, bson.M{"_id": oid, "user_id": userID}).Decode(&pub)
+	err = database.IntegratedPublishes().FindOne(ctx, bson.M{"_id": oid, "org_id": orgID}).Decode(&pub)
 	if err != nil {
 		http.Error(w, "Not found", http.StatusNotFound)
 		return
@@ -229,8 +231,8 @@ func GetIntegratedPublish(w http.ResponseWriter, r *http.Request) {
 }
 
 func DeleteIntegratedPublish(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r)
-	if userID == primitive.NilObjectID {
+	orgID := middleware.GetOrgID(r)
+	if orgID == primitive.NilObjectID {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -245,7 +247,7 @@ func DeleteIntegratedPublish(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	var pub models.IntegratedPublish
-	err = database.IntegratedPublishes().FindOne(ctx, bson.M{"_id": oid, "user_id": userID}).Decode(&pub)
+	err = database.IntegratedPublishes().FindOne(ctx, bson.M{"_id": oid, "org_id": orgID}).Decode(&pub)
 	if err != nil {
 		http.Error(w, "Not found", http.StatusNotFound)
 		return
@@ -256,12 +258,12 @@ func DeleteIntegratedPublish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := database.IntegratedPublishes().DeleteOne(ctx, bson.M{"_id": oid, "user_id": userID}); err != nil {
+	if _, err := database.IntegratedPublishes().DeleteOne(ctx, bson.M{"_id": oid, "org_id": orgID}); err != nil {
 		http.Error(w, "Error deleting record", http.StatusInternalServerError)
 		return
 	}
 
-	slog.Info("integrated_publish_deleted", "id", oid.Hex(), "user_id", userID.Hex())
+	slog.Info("integrated_publish_deleted", "id", oid.Hex(), "org_id", orgID.Hex())
 	json.NewEncoder(w).Encode(map[string]string{"message": "Integrated publish deleted"})
 }
 

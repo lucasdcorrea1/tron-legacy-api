@@ -10,6 +10,7 @@ import (
 type InstagramSchedule struct {
 	ID           primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	UserID       primitive.ObjectID `json:"user_id" bson:"user_id"`
+	OrgID        primitive.ObjectID `json:"org_id" bson:"org_id"`
 	Caption      string             `json:"caption" bson:"caption"`
 	MediaType    string             `json:"media_type" bson:"media_type"` // "image" or "carousel"
 	ImageIDs     []string           `json:"image_ids" bson:"image_ids"`   // IDs of images in the images collection
@@ -55,6 +56,7 @@ type InstagramScheduleListResponse struct {
 type InstagramConfig struct {
 	ID                 primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	UserID             primitive.ObjectID `json:"user_id" bson:"user_id"`
+	OrgID              primitive.ObjectID `json:"org_id" bson:"org_id"`
 	InstagramAccountID string             `json:"instagram_account_id" bson:"instagram_account_id"`
 	AccessTokenEnc     string             `json:"-" bson:"access_token_enc"` // never sent to client
 	AdAccountID        string             `json:"ad_account_id,omitempty" bson:"ad_account_id,omitempty"`

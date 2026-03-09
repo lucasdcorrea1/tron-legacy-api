@@ -11,6 +11,7 @@ import (
 type AutoBoostRule struct {
 	ID        primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	UserID    primitive.ObjectID `json:"user_id" bson:"user_id"`
+	OrgID     primitive.ObjectID `json:"org_id" bson:"org_id"`
 	Name      string             `json:"name" bson:"name"`
 	Active    bool               `json:"active" bson:"active"`
 
@@ -83,6 +84,7 @@ type AutoBoostLog struct {
 	RuleID         primitive.ObjectID `json:"rule_id" bson:"rule_id"`
 	RuleName       string             `json:"rule_name" bson:"rule_name"`
 	UserID         primitive.ObjectID `json:"user_id" bson:"user_id"`
+	OrgID          primitive.ObjectID `json:"org_id" bson:"org_id"`
 
 	IGMediaID   string `json:"ig_media_id" bson:"ig_media_id"`
 	IGPermalink string `json:"ig_permalink" bson:"ig_permalink"`

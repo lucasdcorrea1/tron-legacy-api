@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/tron-legacy/api/internal/database"
+	"github.com/tron-legacy/api/internal/middleware"
 	"github.com/tron-legacy/api/internal/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -19,6 +20,8 @@ import (
 // ListInstagramLeads returns a paginated, filterable list of leads.
 // GET /api/v1/admin/instagram/leads?page=1&limit=20&search=&tag=&source=
 func ListInstagramLeads(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrgID(r)
+
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
@@ -31,7 +34,7 @@ func ListInstagramLeads(w http.ResponseWriter, r *http.Request) {
 		limit = 20
 	}
 
-	filter := bson.M{}
+	filter := bson.M{"org_id": orgID}
 
 	if search := r.URL.Query().Get("search"); search != "" {
 		filter["sender_username"] = bson.M{"$regex": search, "$options": "i"}
@@ -83,6 +86,8 @@ func ListInstagramLeads(w http.ResponseWriter, r *http.Request) {
 // UpdateLeadTags updates the tags for a specific lead.
 // PUT /api/v1/admin/instagram/leads/{id}/tags
 func UpdateLeadTags(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrgID(r)
+
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
@@ -104,7 +109,7 @@ func UpdateLeadTags(w http.ResponseWriter, r *http.Request) {
 		tags = []string{}
 	}
 
-	result, err := database.InstagramLeads().UpdateByID(ctx, oid, bson.M{
+	result, err := database.InstagramLeads().UpdateOne(ctx, bson.M{"_id": oid, "org_id": orgID}, bson.M{
 		"$set": bson.M{"tags": tags, "updated_at": time.Now()},
 	})
 	if err != nil {
@@ -122,10 +127,12 @@ func UpdateLeadTags(w http.ResponseWriter, r *http.Request) {
 // ExportLeadsCSV exports all leads as a CSV file.
 // GET /api/v1/admin/instagram/leads/export
 func ExportLeadsCSV(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrgID(r)
+
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
-	cursor, err := database.InstagramLeads().Find(ctx, bson.M{}, options.Find().SetSort(bson.D{{Key: "last_interaction", Value: -1}}))
+	cursor, err := database.InstagramLeads().Find(ctx, bson.M{"org_id": orgID}, options.Find().SetSort(bson.D{{Key: "last_interaction", Value: -1}}))
 	if err != nil {
 		http.Error(w, `{"message":"Erro ao buscar leads"}`, http.StatusInternalServerError)
 		return
@@ -163,12 +170,15 @@ func ExportLeadsCSV(w http.ResponseWriter, r *http.Request) {
 // GetLeadStats returns summary statistics for leads.
 // GET /api/v1/admin/instagram/leads/stats
 func GetLeadStats(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrgID(r)
+
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
 	col := database.InstagramLeads()
+	orgFilter := bson.M{"org_id": orgID}
 
-	total, err := col.CountDocuments(ctx, bson.M{})
+	total, err := col.CountDocuments(ctx, orgFilter)
 	if err != nil {
 		http.Error(w, `{"message":"Erro ao contar leads"}`, http.StatusInternalServerError)
 		return
@@ -176,6 +186,7 @@ func GetLeadStats(w http.ResponseWriter, r *http.Request) {
 
 	weekAgo := time.Now().AddDate(0, 0, -7)
 	newThisWeek, err := col.CountDocuments(ctx, bson.M{
+		"org_id":     orgID,
 		"created_at": bson.M{"$gte": weekAgo},
 	})
 	if err != nil {
@@ -186,6 +197,7 @@ func GetLeadStats(w http.ResponseWriter, r *http.Request) {
 	// Count by source using aggregation
 	bySource := map[string]int64{}
 	pipeline := []bson.M{
+		{"$match": orgFilter},
 		{"$unwind": "$sources"},
 		{"$group": bson.M{"_id": "$sources", "count": bson.M{"$sum": 1}}},
 	}

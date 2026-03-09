@@ -26,6 +26,9 @@ type Config struct {
 	MetaAppSecret       string
 	MetaAdsAccountID    string
 	MetaAdsAccessToken  string
+	AsaasAPIKey         string
+	AsaasSandbox        bool
+	AsaasWebhookToken   string
 }
 
 var cfg *Config
@@ -63,6 +66,9 @@ func Load() *Config {
 		MetaAppSecret:      getEnv("META_APP_SECRET", ""),
 		MetaAdsAccountID:   getEnv("META_ADS_ACCOUNT_ID", ""),
 		MetaAdsAccessToken: getEnv("META_ADS_ACCESS_TOKEN", ""),
+		AsaasAPIKey:        getEnv("ASAAS_API_KEY", ""),
+		AsaasSandbox:       getEnv("ASAAS_SANDBOX", "true") == "true",
+		AsaasWebhookToken:  getEnv("ASAAS_WEBHOOK_TOKEN", ""),
 	}
 
 	return cfg

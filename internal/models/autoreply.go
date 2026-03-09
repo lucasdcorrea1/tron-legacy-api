@@ -10,6 +10,7 @@ import (
 type AutoReplyRule struct {
 	ID              primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	UserID          primitive.ObjectID `json:"user_id" bson:"user_id"`
+	OrgID           primitive.ObjectID `json:"org_id" bson:"org_id"`
 	Name            string             `json:"name" bson:"name"`
 	TriggerType     string             `json:"trigger_type" bson:"trigger_type"` // "comment", "dm", "both"
 	Keywords        []string           `json:"keywords" bson:"keywords"`
@@ -25,6 +26,7 @@ type AutoReplyRule struct {
 type AutoReplyLog struct {
 	ID               primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	RuleID           primitive.ObjectID `json:"rule_id" bson:"rule_id"`
+	OrgID            primitive.ObjectID `json:"org_id" bson:"org_id"`
 	RuleName         string             `json:"rule_name" bson:"rule_name"`
 	TriggerType      string             `json:"trigger_type" bson:"trigger_type"` // "comment" or "dm"
 	SenderIGID       string             `json:"sender_ig_id" bson:"sender_ig_id"`

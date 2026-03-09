@@ -166,6 +166,7 @@ func GetInstagramConfig(w http.ResponseWriter, r *http.Request) {
 // SaveInstagramConfig saves or updates per-user Instagram credentials
 func SaveInstagramConfig(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
+	orgID := middleware.GetOrgID(r)
 	if userID == primitive.NilObjectID {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -201,7 +202,7 @@ func SaveInstagramConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now()
-	filter := bson.M{"user_id": userID}
+	filter := bson.M{"org_id": orgID}
 	setFields := bson.M{
 		"updated_at": now,
 	}
@@ -256,6 +257,7 @@ func SaveInstagramConfig(w http.ResponseWriter, r *http.Request) {
 		"$set": setFields,
 		"$setOnInsert": bson.M{
 			"user_id":    userID,
+			"org_id":     orgID,
 			"created_at": now,
 		},
 	}
@@ -282,6 +284,7 @@ func SaveInstagramConfig(w http.ResponseWriter, r *http.Request) {
 // DeleteInstagramConfig removes per-user Instagram credentials
 func DeleteInstagramConfig(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
+	orgID := middleware.GetOrgID(r)
 	if userID == primitive.NilObjectID {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -290,7 +293,7 @@ func DeleteInstagramConfig(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	result, err := database.InstagramConfigs().DeleteOne(ctx, bson.M{"user_id": userID})
+	result, err := database.InstagramConfigs().DeleteOne(ctx, bson.M{"org_id": orgID})
 	if err != nil {
 		slog.Error("delete_instagram_config_error", "error", err)
 		http.Error(w, "Error deleting config", http.StatusInternalServerError)
@@ -465,6 +468,7 @@ func GetInstagramFeed(w http.ResponseWriter, r *http.Request) {
 // CreateInstagramSchedule creates a new scheduled Instagram post
 func CreateInstagramSchedule(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
+	orgID := middleware.GetOrgID(r)
 	if userID == primitive.NilObjectID {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -528,6 +532,7 @@ func CreateInstagramSchedule(w http.ResponseWriter, r *http.Request) {
 	schedule := models.InstagramSchedule{
 		ID:          primitive.NewObjectID(),
 		UserID:      userID,
+		OrgID:       orgID,
 		Caption:     req.Caption,
 		MediaType:   req.MediaType,
 		ImageIDs:    req.ImageIDs,
@@ -556,6 +561,8 @@ func CreateInstagramSchedule(w http.ResponseWriter, r *http.Request) {
 
 // ListInstagramSchedules lists scheduled posts with pagination and filtering
 func ListInstagramSchedules(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrgID(r)
+
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	if page < 1 {
 		page = 1
@@ -565,7 +572,7 @@ func ListInstagramSchedules(w http.ResponseWriter, r *http.Request) {
 		limit = 10
 	}
 
-	filter := bson.M{}
+	filter := bson.M{"org_id": orgID}
 	if status := r.URL.Query().Get("status"); status != "" {
 		filter["status"] = status
 	}
@@ -613,6 +620,8 @@ func ListInstagramSchedules(w http.ResponseWriter, r *http.Request) {
 
 // GetInstagramSchedule returns a single schedule by ID
 func GetInstagramSchedule(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrgID(r)
+
 	idStr := r.PathValue("id")
 	oid, err := primitive.ObjectIDFromHex(idStr)
 	if err != nil {
@@ -624,7 +633,7 @@ func GetInstagramSchedule(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	var schedule models.InstagramSchedule
-	err = database.InstagramSchedules().FindOne(ctx, bson.M{"_id": oid}).Decode(&schedule)
+	err = database.InstagramSchedules().FindOne(ctx, bson.M{"_id": oid, "org_id": orgID}).Decode(&schedule)
 	if err != nil {
 		http.Error(w, "Schedule not found", http.StatusNotFound)
 		return
@@ -635,6 +644,8 @@ func GetInstagramSchedule(w http.ResponseWriter, r *http.Request) {
 
 // UpdateInstagramSchedule updates a scheduled post (only if status is "scheduled")
 func UpdateInstagramSchedule(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrgID(r)
+
 	idStr := r.PathValue("id")
 	oid, err := primitive.ObjectIDFromHex(idStr)
 	if err != nil {
@@ -652,7 +663,7 @@ func UpdateInstagramSchedule(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	var schedule models.InstagramSchedule
-	err = database.InstagramSchedules().FindOne(ctx, bson.M{"_id": oid}).Decode(&schedule)
+	err = database.InstagramSchedules().FindOne(ctx, bson.M{"_id": oid, "org_id": orgID}).Decode(&schedule)
 	if err != nil {
 		http.Error(w, "Schedule not found", http.StatusNotFound)
 		return
@@ -718,14 +729,14 @@ func UpdateInstagramSchedule(w http.ResponseWriter, r *http.Request) {
 		setFields["error_message"] = ""
 	}
 
-	_, err = database.InstagramSchedules().UpdateOne(ctx, bson.M{"_id": oid}, update)
+	_, err = database.InstagramSchedules().UpdateOne(ctx, bson.M{"_id": oid, "org_id": orgID}, update)
 	if err != nil {
 		http.Error(w, "Error updating schedule", http.StatusInternalServerError)
 		return
 	}
 
 	var updated models.InstagramSchedule
-	database.InstagramSchedules().FindOne(ctx, bson.M{"_id": oid}).Decode(&updated)
+	database.InstagramSchedules().FindOne(ctx, bson.M{"_id": oid, "org_id": orgID}).Decode(&updated)
 
 	slog.Info("instagram_schedule_updated",
 		"schedule_id", oid.Hex(),
@@ -736,6 +747,8 @@ func UpdateInstagramSchedule(w http.ResponseWriter, r *http.Request) {
 
 // DeleteInstagramSchedule deletes a scheduled post
 func DeleteInstagramSchedule(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrgID(r)
+
 	idStr := r.PathValue("id")
 	oid, err := primitive.ObjectIDFromHex(idStr)
 	if err != nil {
@@ -747,7 +760,7 @@ func DeleteInstagramSchedule(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	var schedule models.InstagramSchedule
-	err = database.InstagramSchedules().FindOne(ctx, bson.M{"_id": oid}).Decode(&schedule)
+	err = database.InstagramSchedules().FindOne(ctx, bson.M{"_id": oid, "org_id": orgID}).Decode(&schedule)
 	if err != nil {
 		http.Error(w, "Schedule not found", http.StatusNotFound)
 		return
@@ -758,7 +771,7 @@ func DeleteInstagramSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = database.InstagramSchedules().DeleteOne(ctx, bson.M{"_id": oid})
+	_, err = database.InstagramSchedules().DeleteOne(ctx, bson.M{"_id": oid, "org_id": orgID})
 	if err != nil {
 		http.Error(w, "Error deleting schedule", http.StatusInternalServerError)
 		return
@@ -774,6 +787,7 @@ func DeleteInstagramSchedule(w http.ResponseWriter, r *http.Request) {
 // UploadInstagramImage uploads an image for Instagram, resized to max 1080x1080
 func UploadInstagramImage(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
+	orgID := middleware.GetOrgID(r)
 	if userID == primitive.NilObjectID {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -829,6 +843,7 @@ func UploadInstagramImage(w http.ResponseWriter, r *http.Request) {
 	imgDoc := models.BlogImage{
 		ID:         primitive.NewObjectID(),
 		UploaderID: userID,
+		OrgID:      orgID,
 		Width:      bounds.Dx(),
 		Data:       base64Img,
 		Size:       buf.Len(),

@@ -10,6 +10,7 @@ import (
 type BlogPost struct {
 	ID              primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	AuthorID        primitive.ObjectID `json:"author_id" bson:"author_id"`
+	OrgID           primitive.ObjectID `json:"org_id" bson:"org_id"`
 	Title           string             `json:"title" bson:"title"`
 	Slug            string             `json:"slug" bson:"slug"`
 	Content         string             `json:"content" bson:"content"`
@@ -82,6 +83,7 @@ type PostListResponse struct {
 type BlogImage struct {
 	ID         primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	UploaderID primitive.ObjectID `json:"uploader_id" bson:"uploader_id"`
+	OrgID      primitive.ObjectID `json:"org_id" bson:"org_id"`
 	GroupID    string             `json:"group_id,omitempty" bson:"group_id,omitempty"`       // shared across size variants
 	SizeLabel  string             `json:"size_label,omitempty" bson:"size_label,omitempty"`   // "thumb", "card", or "banner"
 	Width      int                `json:"width,omitempty" bson:"width,omitempty"`             // image width in pixels
