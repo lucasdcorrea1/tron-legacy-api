@@ -81,6 +81,10 @@ func CreateIntegratedPublish(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "campaign.duration_days must be > 0", http.StatusBadRequest)
 		return
 	}
+	if req.Campaign.Objective == "OUTCOME_TRAFFIC" && req.Campaign.Creative.LinkURL == "" {
+		http.Error(w, "campaign.creative.link_url is required for TRAFFIC objective", http.StatusBadRequest)
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -420,6 +424,18 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 
 	accountPath := adAccountPath(adsCreds.AdAccountID)
 
+	// For TRAFFIC objective, resolve the real Facebook Page ID
+	var fbPageID string
+	if pub.Campaign.Objective == "OUTCOME_TRAFFIC" {
+		fbPageID, err = resolveFacebookPageID(adsCreds.Token, igCreds.AccountID)
+		if err != nil {
+			slog.Error("integrated_publish_resolve_page_error", "id", pub.ID.Hex(), "error", err)
+			ipUpdateStatus(ctx, pub.ID, "failed", "Could not resolve Facebook Page ID: "+err.Error(), "ads")
+			return
+		}
+		slog.Info("integrated_publish_resolved_page", "id", pub.ID.Hex(), "fb_page_id", fbPageID)
+	}
+
 	// Step 2a: Create Campaign (with Campaign Budget Optimization)
 	campaignParams := url.Values{}
 	campaignParams.Set("name", pub.Campaign.Name)
@@ -455,7 +471,10 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 	optGoal := "REACH"
 	switch pub.Campaign.Objective {
 	case "OUTCOME_TRAFFIC":
-		optGoal = "LINK_CLICKS"
+		optGoal = "LANDING_PAGE_VIEWS"
+		promotedObj, _ := json.Marshal(map[string]string{"page_id": fbPageID})
+		adsetParams.Set("promoted_object", string(promotedObj))
+		adsetParams.Set("destination_type", "WEBSITE")
 	case "OUTCOME_ENGAGEMENT":
 		optGoal = "POST_ENGAGEMENT"
 	case "OUTCOME_AWARENESS":
@@ -487,15 +506,49 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 	creativeParams := url.Values{}
 	creativeParams.Set("name", pub.Campaign.Name+" Creative")
 
-	// All objectives: promote existing IG post via object_story_id
-	objectStoryID := igCreds.AccountID + "_" + mediaID
-	creativeParams.Set("object_story_id", objectStoryID)
+	if pub.Campaign.Objective == "OUTCOME_TRAFFIC" {
+		// TRAFFIC: use object_story_spec with page_id + instagram_actor_id + link_data
+		cta := pub.Campaign.Creative.CallToAction
+		if cta == "" {
+			cta = "LEARN_MORE"
+		}
+		objectStorySpec := map[string]interface{}{
+			"page_id":            fbPageID,
+			"instagram_actor_id": igCreds.AccountID,
+			"link_data": map[string]interface{}{
+				"link":    pub.Campaign.Creative.LinkURL,
+				"message": pub.Caption,
+				"call_to_action": map[string]interface{}{
+					"type":  cta,
+					"value": map[string]string{"link": pub.Campaign.Creative.LinkURL},
+				},
+			},
+		}
+		specJSON, _ := json.Marshal(objectStorySpec)
+		creativeParams.Set("object_story_spec", string(specJSON))
 
-	slog.Info("integrated_publish_creative_attempt",
-		"id", pub.ID.Hex(),
-		"approach", "object_story_id",
-		"object_story_id", objectStoryID,
-	)
+		slog.Info("integrated_publish_creative_attempt",
+			"id", pub.ID.Hex(),
+			"approach", "object_story_spec_traffic",
+			"fb_page_id", fbPageID,
+			"link_url", pub.Campaign.Creative.LinkURL,
+		)
+	} else {
+		// ENGAGEMENT / AWARENESS: promote existing IG post via object_story_spec
+		objectStorySpec := map[string]interface{}{
+			"instagram_actor_id":         igCreds.AccountID,
+			"source_instagram_media_id":  mediaID,
+		}
+		specJSON, _ := json.Marshal(objectStorySpec)
+		creativeParams.Set("object_story_spec", string(specJSON))
+
+		slog.Info("integrated_publish_creative_attempt",
+			"id", pub.ID.Hex(),
+			"approach", "object_story_spec_boost",
+			"ig_account_id", igCreds.AccountID,
+			"ig_media_id", mediaID,
+		)
+	}
 
 	creativeResult, err := metaGraphPost(accountPath+"/adcreatives", adsCreds.Token, creativeParams)
 	if err != nil {
