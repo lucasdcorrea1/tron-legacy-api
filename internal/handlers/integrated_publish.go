@@ -417,15 +417,12 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 	creativeParams := url.Values{}
 	creativeParams.Set("name", pub.Campaign.Name+" Creative")
 
+	// Use object_story_id for all objectives — promotes the existing IG post
+	objectStoryID := igCreds.AccountID + "_" + mediaID
+	creativeParams.Set("object_story_id", objectStoryID)
+
+	// For TRAFFIC, add call_to_action with destination link
 	if pub.Campaign.Objective == "OUTCOME_TRAFFIC" {
-		// TRAFFIC requires a creative with a destination link.
-		// Use object_story_spec with source_instagram_media_id + call_to_action.
-		pageID, err := resolveFacebookPageID(adsCreds.Token, igCreds.AccountID)
-		if err != nil {
-			slog.Error("integrated_publish_resolve_page_id_error", "id", pub.ID.Hex(), "error", err)
-			ipUpdateStatus(ctx, pub.ID, "failed", "Could not resolve Facebook Page ID: "+err.Error(), "ads")
-			return
-		}
 		linkURL := pub.Campaign.Creative.LinkURL
 		if linkURL == "" {
 			linkURL = "https://ig.me/" + mediaID
@@ -434,33 +431,20 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 		if cta == "" {
 			cta = "LEARN_MORE"
 		}
-
-		spec := map[string]interface{}{
-			"page_id":                   pageID,
-			"instagram_actor_id":        igCreds.AccountID,
-			"source_instagram_media_id": mediaID,
-			"call_to_action": map[string]interface{}{
-				"type":  cta,
-				"value": map[string]string{"link": linkURL},
-			},
-		}
-		specJSON, _ := json.Marshal(spec)
-		creativeParams.Set("object_story_spec", string(specJSON))
+		ctaJSON, _ := json.Marshal(map[string]interface{}{
+			"type":  cta,
+			"value": map[string]string{"link": linkURL},
+		})
+		creativeParams.Set("call_to_action", string(ctaJSON))
 
 		slog.Info("integrated_publish_creative_attempt",
 			"id", pub.ID.Hex(),
-			"approach", "object_story_spec+traffic",
-			"page_id", pageID,
-			"ig_account_id", igCreds.AccountID,
-			"media_id", mediaID,
+			"approach", "object_story_id+cta",
+			"object_story_id", objectStoryID,
 			"link_url", linkURL,
 			"cta", cta,
 		)
 	} else {
-		// ENGAGEMENT / AWARENESS: promote existing post as-is
-		objectStoryID := igCreds.AccountID + "_" + mediaID
-		creativeParams.Set("object_story_id", objectStoryID)
-
 		slog.Info("integrated_publish_creative_attempt",
 			"id", pub.ID.Hex(),
 			"approach", "object_story_id",
