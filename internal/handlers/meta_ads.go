@@ -1243,6 +1243,7 @@ func GetMetaAdsInsights(w http.ResponseWriter, r *http.Request) {
 
 	if ti := r.URL.Query().Get("time_increment"); ti != "" {
 		params.Set("time_increment", ti)
+		params.Set("limit", "100")
 	}
 
 	if dateStart := r.URL.Query().Get("date_start"); dateStart != "" {
