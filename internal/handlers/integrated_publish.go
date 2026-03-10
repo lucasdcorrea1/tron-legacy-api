@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/tron-legacy/api/internal/database"
@@ -424,8 +425,8 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 
 	accountPath := adAccountPath(adsCreds.AdAccountID)
 
-	// For TRAFFIC objective, resolve the real Facebook Page ID
-	var fbPageID string
+	// For TRAFFIC objective, resolve Facebook Page ID and Instagram Actor ID
+	var fbPageID, igActorID string
 	if pub.Campaign.Objective == "OUTCOME_TRAFFIC" {
 		fbPageID, err = resolveFacebookPageID(adsCreds.Token, igCreds.AccountID)
 		if err != nil {
@@ -433,7 +434,12 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 			ipUpdateStatus(ctx, pub.ID, "failed", "Could not resolve Facebook Page ID: "+err.Error(), "ads")
 			return
 		}
-		slog.Info("integrated_publish_resolved_page", "id", pub.ID.Hex(), "fb_page_id", fbPageID)
+		igActorID, err = resolveInstagramActorID(adsCreds.Token, adsCreds.AdAccountID)
+		if err != nil {
+			slog.Warn("integrated_publish_ig_actor_not_found", "id", pub.ID.Hex(), "error", err)
+			// Not fatal: ad will run on Facebook only
+		}
+		slog.Info("integrated_publish_resolved_ids", "id", pub.ID.Hex(), "fb_page_id", fbPageID, "ig_actor_id", igActorID)
 	}
 
 	// Step 2a: Create Campaign (with Campaign Budget Optimization)
@@ -525,9 +531,11 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 			linkData["picture"] = getPublicImageURL(pub.ImageIDs[0])
 		}
 		objectStorySpec := map[string]interface{}{
-			"page_id":            fbPageID,
-			"instagram_actor_id": igCreds.AccountID,
-			"link_data":          linkData,
+			"page_id":   fbPageID,
+			"link_data": linkData,
+		}
+		if igActorID != "" {
+			objectStorySpec["instagram_actor_id"] = igActorID
 		}
 		specJSON, _ := json.Marshal(objectStorySpec)
 		creativeParams.Set("object_story_spec", string(specJSON))
@@ -536,6 +544,7 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 			"id", pub.ID.Hex(),
 			"approach", "object_story_spec_traffic",
 			"fb_page_id", fbPageID,
+			"ig_actor_id", igActorID,
 			"link_url", pub.Campaign.Creative.LinkURL,
 			"image_url", linkData["picture"],
 		)
@@ -627,6 +636,39 @@ func resolveFacebookPageID(token, igAccountID string) (string, error) {
 	}
 
 	return "", fmt.Errorf("no Facebook Page found linked to Instagram account %s", igAccountID)
+}
+
+// resolveInstagramActorID finds the Instagram account authorized in the Ad Account.
+// Queries GET /act_{ad_account_id}/instagram_accounts to get a valid instagram_actor_id.
+func resolveInstagramActorID(token, adAccountID string) (string, error) {
+	path := adAccountID
+	if !strings.HasPrefix(path, "act_") {
+		path = "act_" + path
+	}
+	apiURL := "https://graph.facebook.com/v21.0/" + path + "/instagram_accounts?fields=id,username&access_token=" + url.QueryEscape(token)
+
+	resp, err := http.Get(apiURL)
+	if err != nil {
+		return "", fmt.Errorf("http error: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Data []struct {
+			ID       string `json:"id"`
+			Username string `json:"username"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("decode error: %w", err)
+	}
+
+	if len(result.Data) == 0 {
+		return "", fmt.Errorf("no Instagram accounts connected to ad account %s", adAccountID)
+	}
+
+	// Return the first connected Instagram account
+	return result.Data[0].ID, nil
 }
 
 // buildMetaTargeting converts targeting to Meta API format (interest IDs as numbers).
