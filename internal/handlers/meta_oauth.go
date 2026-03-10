@@ -19,7 +19,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-const metaOAuthScopes = "pages_show_list,instagram_basic,instagram_manage_insights,ads_read,business_management"
+const metaOAuthScopes = "pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights,ads_read,business_management"
 
 // MetaOAuthURL returns the Facebook OAuth authorization URL.
 // GET /api/v1/auth/meta/url
@@ -118,9 +118,8 @@ func MetaOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	// Step 3: Fetch pages + instagram_business_account
 	igAccountID, businessID, err := fetchInstagramAccount(longToken)
 	if err != nil {
-		slog.Error("meta_oauth_fetch_ig_account_failed", "error", err)
-		http.Error(w, "Falha ao buscar conta Instagram: "+err.Error(), http.StatusBadGateway)
-		return
+		slog.Warn("meta_oauth_fetch_ig_account_failed", "error", err)
+		// Not fatal — user can configure manually later
 	}
 
 	// Step 4: Fetch ad accounts
@@ -144,9 +143,11 @@ func MetaOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	filter := bson.M{"org_id": orgID}
 	setFields := bson.M{
-		"instagram_account_id": igAccountID,
-		"access_token_enc":     tokenEnc,
-		"updated_at":           now,
+		"access_token_enc": tokenEnc,
+		"updated_at":       now,
+	}
+	if igAccountID != "" {
+		setFields["instagram_account_id"] = igAccountID
 	}
 	if businessID != "" {
 		setFields["business_id"] = businessID
@@ -171,10 +172,13 @@ func MetaOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	needsManualConfig := igAccountID == ""
+
 	slog.Info("meta_oauth_connected",
 		"org_id", orgID.Hex(),
 		"ig_account_id", igAccountID,
 		"has_ad_account", adAccountID != "",
+		"needs_manual_config", needsManualConfig,
 	)
 
 	// Return masked info
@@ -183,6 +187,7 @@ func MetaOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		"instagram_account_id": maskID(igAccountID),
 		"ad_account_id":        maskID(adAccountID),
 		"business_id":          maskID(businessID),
+		"needs_manual_config":  needsManualConfig,
 	})
 }
 

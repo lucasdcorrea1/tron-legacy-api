@@ -76,6 +76,7 @@ type SaveInstagramConfigRequest struct {
 // InstagramConfigResponse indicates whether Instagram is configured
 type InstagramConfigResponse struct {
 	Configured  bool   `json:"configured"`
+	HasToken    bool   `json:"has_token"`
 	AccountID   string `json:"account_id"`
 	Source      string `json:"source"` // "user" or "env"
 	AdAccountID string `json:"ad_account_id,omitempty"`

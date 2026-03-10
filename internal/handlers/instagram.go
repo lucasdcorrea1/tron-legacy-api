@@ -144,11 +144,12 @@ func GetInstagramConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := models.InstagramConfigResponse{
-		Configured: creds != nil,
+		Configured: creds != nil && creds.AccountID != "",
 	}
 	if creds != nil {
 		resp.AccountID = maskAccountID(creds.AccountID)
 		resp.Source = creds.Source
+		resp.HasToken = true
 	}
 
 	// If source is "user", also load Meta Ads fields from the same config
