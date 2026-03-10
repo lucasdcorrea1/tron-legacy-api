@@ -26,24 +26,26 @@ type OrgSettings struct {
 
 // OrgMembership links a user to an organization with a role.
 type OrgMembership struct {
-	ID       primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	OrgID    primitive.ObjectID `json:"org_id" bson:"org_id"`
-	UserID   primitive.ObjectID `json:"user_id" bson:"user_id"`
-	OrgRole  string             `json:"org_role" bson:"org_role"` // "owner", "admin", "member", "viewer"
-	JoinedAt time.Time          `json:"joined_at" bson:"joined_at"`
+	ID          primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	OrgID       primitive.ObjectID `json:"org_id" bson:"org_id"`
+	UserID      primitive.ObjectID `json:"user_id" bson:"user_id"`
+	OrgRole     string             `json:"org_role" bson:"org_role"` // "owner", "admin", "member", "viewer"
+	Permissions []string           `json:"permissions,omitempty" bson:"permissions,omitempty"`
+	JoinedAt    time.Time          `json:"joined_at" bson:"joined_at"`
 }
 
 // OrgInvitation represents a pending invitation to join an organization.
 type OrgInvitation struct {
-	ID        primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	OrgID     primitive.ObjectID `json:"org_id" bson:"org_id"`
-	Email     string             `json:"email" bson:"email"`
-	OrgRole   string             `json:"org_role" bson:"org_role"`
-	Token     string             `json:"token" bson:"token"`
-	Status    string             `json:"status" bson:"status"` // "pending", "accepted", "expired"
-	InvitedBy primitive.ObjectID `json:"invited_by" bson:"invited_by"`
-	ExpiresAt time.Time          `json:"expires_at" bson:"expires_at"`
-	CreatedAt time.Time          `json:"created_at" bson:"created_at"`
+	ID          primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	OrgID       primitive.ObjectID `json:"org_id" bson:"org_id"`
+	Email       string             `json:"email" bson:"email"`
+	OrgRole     string             `json:"org_role" bson:"org_role"`
+	Permissions []string           `json:"permissions,omitempty" bson:"permissions,omitempty"`
+	Token       string             `json:"token" bson:"token"`
+	Status      string             `json:"status" bson:"status"` // "pending", "accepted", "expired"
+	InvitedBy   primitive.ObjectID `json:"invited_by" bson:"invited_by"`
+	ExpiresAt   time.Time          `json:"expires_at" bson:"expires_at"`
+	CreatedAt   time.Time          `json:"created_at" bson:"created_at"`
 }
 
 // Subscription represents a plan subscription for an organization.
@@ -123,18 +125,48 @@ type UpdateOrgRequest struct {
 }
 
 type InviteMemberRequest struct {
-	Email   string `json:"email"`
-	OrgRole string `json:"org_role"`
+	Email       string   `json:"email"`
+	OrgRole     string   `json:"org_role"`
+	Permissions []string `json:"permissions,omitempty"`
 }
 
 type UpdateMemberRoleRequest struct {
 	OrgRole string `json:"org_role"`
 }
 
+type UpdateMemberPermissionsRequest struct {
+	Permissions []string `json:"permissions"`
+}
+
+// AllPermissions lists every granular permission available for members.
+var AllPermissions = []string{
+	"instagram:schedule",
+	"instagram:autoreply",
+	"instagram:leads",
+	"instagram:config",
+	"meta_ads:manage",
+	"meta_ads:budget",
+	"auto_boost:manage",
+	"blog:manage",
+	"email:manage",
+	"ai:generate",
+}
+
+// ValidPermission checks if a permission string is valid.
+func ValidPermission(p string) bool {
+	for _, v := range AllPermissions {
+		if v == p {
+			return true
+		}
+	}
+	return false
+}
+
 type OrgResponse struct {
-	Organization `json:",inline"`
-	MemberCount  int    `json:"member_count"`
-	MyRole       string `json:"my_role"`
+	Organization  `json:",inline"`
+	MemberCount   int      `json:"member_count"`
+	MyRole        string   `json:"my_role"`
+	MyPermissions []string `json:"my_permissions,omitempty"`
 }
 
 type OrgListResponse struct {
@@ -142,12 +174,13 @@ type OrgListResponse struct {
 }
 
 type MemberResponse struct {
-	UserID   primitive.ObjectID `json:"user_id"`
-	Name     string             `json:"name"`
-	Email    string             `json:"email"`
-	Avatar   string             `json:"avatar,omitempty"`
-	OrgRole  string             `json:"org_role"`
-	JoinedAt time.Time          `json:"joined_at"`
+	UserID      primitive.ObjectID `json:"user_id"`
+	Name        string             `json:"name"`
+	Email       string             `json:"email"`
+	Avatar      string             `json:"avatar,omitempty"`
+	OrgRole     string             `json:"org_role"`
+	Permissions []string           `json:"permissions,omitempty"`
+	JoinedAt    time.Time          `json:"joined_at"`
 }
 
 type MemberListResponse struct {

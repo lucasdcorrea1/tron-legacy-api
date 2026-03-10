@@ -156,9 +156,10 @@ func ListOrgs(w http.ResponseWriter, r *http.Request) {
 		memberCount, _ := database.OrgMemberships().CountDocuments(ctx, bson.M{"org_id": m.OrgID})
 
 		orgs = append(orgs, models.OrgResponse{
-			Organization: org,
-			MemberCount:  int(memberCount),
-			MyRole:       m.OrgRole,
+			Organization:  org,
+			MemberCount:   int(memberCount),
+			MyRole:        m.OrgRole,
+			MyPermissions: m.Permissions,
 		})
 	}
 
@@ -190,9 +191,10 @@ func GetOrg(w http.ResponseWriter, r *http.Request) {
 	memberCount, _ := database.OrgMemberships().CountDocuments(ctx, bson.M{"org_id": orgID})
 
 	json.NewEncoder(w).Encode(models.OrgResponse{
-		Organization: org,
-		MemberCount:  int(memberCount),
-		MyRole:       middleware.GetOrgRole(r),
+		Organization:  org,
+		MemberCount:   int(memberCount),
+		MyRole:        middleware.GetOrgRole(r),
+		MyPermissions: middleware.GetOrgPermissions(r),
 	})
 }
 
@@ -291,12 +293,13 @@ func ListMembers(w http.ResponseWriter, r *http.Request) {
 		database.Profiles().FindOne(ctx, bson.M{"user_id": m.UserID}).Decode(&profile)
 
 		members = append(members, models.MemberResponse{
-			UserID:   m.UserID,
-			Name:     profile.Name,
-			Email:    user.Email,
-			Avatar:   profile.Avatar,
-			OrgRole:  m.OrgRole,
-			JoinedAt: m.JoinedAt,
+			UserID:      m.UserID,
+			Name:        profile.Name,
+			Email:       user.Email,
+			Avatar:      profile.Avatar,
+			OrgRole:     m.OrgRole,
+			Permissions: m.Permissions,
+			JoinedAt:    m.JoinedAt,
 		})
 	}
 
@@ -384,6 +387,80 @@ func UpdateMemberRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(map[string]string{"message": "Role updated"})
+}
+
+// UpdateMemberPermissions sets the granular permissions for a member.
+// Only owner/admin can call this. Permissions only apply to "member" role.
+func UpdateMemberPermissions(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrgID(r)
+
+	targetUID, err := primitive.ObjectIDFromHex(r.PathValue("uid"))
+	if err != nil {
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	var req models.UpdateMemberPermissionsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate all permissions
+	var validPerms []string
+	for _, p := range req.Permissions {
+		if !models.ValidPermission(p) {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"message": "Invalid permission: " + p,
+			})
+			return
+		}
+		validPerms = append(validPerms, p)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Verify target exists and is a member
+	var targetMembership models.OrgMembership
+	err = database.OrgMemberships().FindOne(ctx, bson.M{
+		"org_id":  orgID,
+		"user_id": targetUID,
+	}).Decode(&targetMembership)
+	if err != nil {
+		http.Error(w, "Member not found", http.StatusNotFound)
+		return
+	}
+
+	// Cannot change permissions for owner/admin (they have all permissions implicitly)
+	if targetMembership.OrgRole == "owner" || targetMembership.OrgRole == "admin" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": "Cannot set permissions for owner or admin roles (they have all permissions)",
+		})
+		return
+	}
+
+	_, err = database.OrgMemberships().UpdateOne(ctx,
+		bson.M{"org_id": orgID, "user_id": targetUID},
+		bson.M{"$set": bson.M{"permissions": validPerms}},
+	)
+	if err != nil {
+		http.Error(w, "Error updating permissions", http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("member_permissions_updated",
+		"org_id", orgID.Hex(),
+		"target_user_id", targetUID.Hex(),
+		"permissions", strings.Join(validPerms, ", "),
+	)
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":     "Permissions updated",
+		"permissions": validPerms,
+	})
 }
 
 // RemoveMember removes a member from the organization.
@@ -501,21 +578,32 @@ func InviteMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate permissions if provided
+	var validPerms []string
+	if req.OrgRole == "member" && len(req.Permissions) > 0 {
+		for _, p := range req.Permissions {
+			if models.ValidPermission(p) {
+				validPerms = append(validPerms, p)
+			}
+		}
+	}
+
 	// Generate invitation token
 	tokenBytes := make([]byte, 32)
 	rand.Read(tokenBytes)
 	token := hex.EncodeToString(tokenBytes)
 
 	invitation := models.OrgInvitation{
-		ID:        primitive.NewObjectID(),
-		OrgID:     orgID,
-		Email:     req.Email,
-		OrgRole:   req.OrgRole,
-		Token:     token,
-		Status:    "pending",
-		InvitedBy: userID,
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour), // 7 days
-		CreatedAt: time.Now(),
+		ID:          primitive.NewObjectID(),
+		OrgID:       orgID,
+		Email:       req.Email,
+		OrgRole:     req.OrgRole,
+		Permissions: validPerms,
+		Token:       token,
+		Status:      "pending",
+		InvitedBy:   userID,
+		ExpiresAt:   time.Now().Add(7 * 24 * time.Hour), // 7 days
+		CreatedAt:   time.Now(),
 	}
 
 	_, err = database.OrgInvitations().InsertOne(ctx, invitation)
@@ -589,13 +677,14 @@ func AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create membership
+	// Create membership (copy permissions from invitation)
 	membership := models.OrgMembership{
-		ID:       primitive.NewObjectID(),
-		OrgID:    invitation.OrgID,
-		UserID:   userID,
-		OrgRole:  invitation.OrgRole,
-		JoinedAt: time.Now(),
+		ID:          primitive.NewObjectID(),
+		OrgID:       invitation.OrgID,
+		UserID:      userID,
+		OrgRole:     invitation.OrgRole,
+		Permissions: invitation.Permissions,
+		JoinedAt:    time.Now(),
 	}
 	_, err = database.OrgMemberships().InsertOne(ctx, membership)
 	if err != nil {

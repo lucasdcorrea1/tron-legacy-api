@@ -16,6 +16,7 @@ import (
 
 const OrgIDKey contextKey = "orgID"
 const OrgRoleKey contextKey = "orgRole"
+const OrgPermissionsKey contextKey = "orgPermissions"
 
 // GetOrgID extracts the active organization ID from request context.
 func GetOrgID(r *http.Request) primitive.ObjectID {
@@ -30,6 +31,12 @@ func GetOrgID(r *http.Request) primitive.ObjectID {
 func GetOrgRole(r *http.Request) string {
 	role, _ := r.Context().Value(OrgRoleKey).(string)
 	return role
+}
+
+// GetOrgPermissions extracts the user's granular permissions from request context.
+func GetOrgPermissions(r *http.Request) []string {
+	perms, _ := r.Context().Value(OrgPermissionsKey).([]string)
+	return perms
 }
 
 // RequireOrg validates that the JWT contains a valid org_id and that the user
@@ -82,6 +89,7 @@ func RequireOrg(next http.Handler) http.Handler {
 		// Inject org context
 		ctx2 := context.WithValue(r.Context(), OrgIDKey, orgID)
 		ctx2 = context.WithValue(ctx2, OrgRoleKey, membership.OrgRole)
+		ctx2 = context.WithValue(ctx2, OrgPermissionsKey, membership.Permissions)
 		next.ServeHTTP(w, r.WithContext(ctx2))
 	})
 }
@@ -114,6 +122,54 @@ func RequireOrgRole(roles ...string) func(http.Handler) http.Handler {
 			}
 
 			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// RequirePermission checks that the user has a specific granular permission.
+// Owner and Admin roles always pass. Members need the permission explicitly.
+// Viewers are always blocked. Must be used after RequireOrg middleware.
+func RequirePermission(perm string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			orgRole := GetOrgRole(r)
+
+			// Owner and admin always have all permissions
+			if orgRole == "owner" || orgRole == "admin" {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			// Viewer never has permissions
+			if orgRole == "viewer" {
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(map[string]string{
+					"message":             "Forbidden: insufficient permissions",
+					"required_permission": perm,
+				})
+				return
+			}
+
+			// Member: check explicit permission
+			perms := GetOrgPermissions(r)
+			for _, p := range perms {
+				if p == perm {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+
+			slog.Warn("org_permission_check_failed",
+				"user_id", GetUserID(r).Hex(),
+				"org_id", GetOrgID(r).Hex(),
+				"current_role", orgRole,
+				"required_permission", perm,
+			)
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{
+				"message":             "Forbidden: insufficient permissions",
+				"required_permission": perm,
+			})
 		})
 	}
 }
