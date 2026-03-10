@@ -116,9 +116,11 @@ func MetaOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Step 3: Fetch pages + instagram_business_account
-	igAccountID, businessID, err := fetchInstagramAccount(longToken)
-	if err != nil {
-		slog.Warn("meta_oauth_fetch_ig_account_failed", "error", err)
+	igAccountID, businessID, igErr := fetchInstagramAccount(longToken)
+	igReason := ""
+	if igErr != nil {
+		igReason = igErr.Error() // "no_pages" or "no_ig_linked"
+		slog.Warn("meta_oauth_fetch_ig_account_failed", "reason", igReason)
 		// Not fatal — user can configure manually later
 	}
 
@@ -182,13 +184,17 @@ func MetaOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	)
 
 	// Return masked info
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	resp := map[string]interface{}{
 		"success":              true,
 		"instagram_account_id": maskID(igAccountID),
 		"ad_account_id":        maskID(adAccountID),
 		"business_id":          maskID(businessID),
 		"needs_manual_config":  needsManualConfig,
-	})
+	}
+	if igReason != "" {
+		resp["ig_reason"] = igReason
+	}
+	json.NewEncoder(w).Encode(resp)
 }
 
 // exchangeCodeForToken exchanges an OAuth authorization code for a short-lived access token.
@@ -265,7 +271,14 @@ func fetchInstagramAccount(token string) (string, string, error) {
 		return "", "", fmt.Errorf("meta error: %s", result.Error.Message)
 	}
 
+	if len(result.Data) == 0 {
+		slog.Warn("meta_oauth_no_pages_found", "hint", "user has no Facebook Pages")
+		return "", "", fmt.Errorf("no_pages")
+	}
+
+	pageNames := make([]string, 0, len(result.Data))
 	for _, page := range result.Data {
+		pageNames = append(pageNames, page.Name)
 		if page.InstagramBusinessAccount != nil && page.InstagramBusinessAccount.ID != "" {
 			slog.Info("meta_oauth_found_ig_account",
 				"page_id", page.ID,
@@ -276,7 +289,11 @@ func fetchInstagramAccount(token string) (string, string, error) {
 		}
 	}
 
-	return "", "", fmt.Errorf("nenhuma pagina com conta Instagram Business encontrada")
+	slog.Warn("meta_oauth_pages_without_ig",
+		"page_count", len(result.Data),
+		"page_names", pageNames,
+	)
+	return "", "", fmt.Errorf("no_ig_linked")
 }
 
 // fetchAdAccount fetches the user's ad accounts and returns the first one.
