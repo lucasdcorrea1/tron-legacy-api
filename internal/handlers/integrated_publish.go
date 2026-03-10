@@ -105,12 +105,12 @@ func CreateIntegratedPublish(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify credentials exist
-	igCreds, err := getInstagramCredentials(ctx, userID)
+	igCreds, err := getInstagramCredentials(ctx, userID, orgID)
 	if err != nil || igCreds == nil {
 		http.Error(w, "Instagram not configured. Configure in Settings first.", http.StatusBadRequest)
 		return
 	}
-	adsCreds, err := getMetaAdsCredentials(ctx, userID)
+	adsCreds, err := getMetaAdsCredentials(ctx, userID, orgID)
 	if err != nil || adsCreds == nil {
 		http.Error(w, "Meta Ads not configured. Configure in Settings first.", http.StatusBadRequest)
 		return
@@ -387,6 +387,7 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 	igSchedule := models.InstagramSchedule{
 		ID:        pub.ID,
 		UserID:    pub.UserID,
+		OrgID:     pub.OrgID,
 		Caption:   pub.Caption,
 		MediaType: pub.MediaType,
 		ImageIDs:  pub.ImageIDs,
@@ -409,14 +410,14 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 	// PHASE 2: Create Meta Ads Campaign
 	ipUpdateStatus(ctx, pub.ID, "publishing_ads", "", "")
 
-	adsCreds, err := getMetaAdsCredentials(ctx, pub.UserID)
+	adsCreds, err := getMetaAdsCredentials(ctx, pub.UserID, pub.OrgID)
 	if err != nil || adsCreds == nil {
 		slog.Error("integrated_publish_ads_creds_error", "id", pub.ID.Hex(), "error", err)
 		ipUpdateStatus(ctx, pub.ID, "failed", "Meta Ads not configured", "ads")
 		return
 	}
 
-	igCreds, err := getInstagramCredentials(ctx, pub.UserID)
+	igCreds, err := getInstagramCredentials(ctx, pub.UserID, pub.OrgID)
 	if err != nil || igCreds == nil {
 		slog.Error("integrated_publish_ig_creds_error", "id", pub.ID.Hex(), "error", err)
 		ipUpdateStatus(ctx, pub.ID, "failed", "Instagram not configured", "ads")

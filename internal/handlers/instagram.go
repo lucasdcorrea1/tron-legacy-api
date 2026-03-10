@@ -82,12 +82,12 @@ type instagramCredentials struct {
 	OrgID     primitive.ObjectID
 }
 
-// getInstagramCredentials resolves credentials: DB per-user config first, then env vars fallback.
-func getInstagramCredentials(ctx context.Context, userID primitive.ObjectID) (*instagramCredentials, error) {
-	// Try per-user config from DB
-	if userID != primitive.NilObjectID && crypto.Available() {
+// getInstagramCredentials resolves credentials: DB per-org config first, then env vars fallback (only when no org context).
+func getInstagramCredentials(ctx context.Context, userID, orgID primitive.ObjectID) (*instagramCredentials, error) {
+	// Try per-org config from DB
+	if orgID != primitive.NilObjectID && crypto.Available() {
 		var cfg models.InstagramConfig
-		err := database.InstagramConfigs().FindOne(ctx, bson.M{"user_id": userID}).Decode(&cfg)
+		err := database.InstagramConfigs().FindOne(ctx, bson.M{"org_id": orgID}).Decode(&cfg)
 		if err == nil {
 			token, err := crypto.Decrypt(cfg.AccessTokenEnc)
 			if err != nil {
@@ -103,9 +103,11 @@ func getInstagramCredentials(ctx context.Context, userID primitive.ObjectID) (*i
 		if err != mongo.ErrNoDocuments {
 			return nil, fmt.Errorf("db error: %w", err)
 		}
+		// org specified but no config found — don't fallback to env vars
+		return nil, nil
 	}
 
-	// Fallback to env vars
+	// Fallback to env vars only when there's no org context
 	envCfg := config.Get()
 	if envCfg.InstagramAccountID != "" && envCfg.InstagramToken != "" {
 		return &instagramCredentials{
@@ -129,11 +131,12 @@ func maskAccountID(id string) string {
 // GetInstagramConfig returns whether Instagram is configured (DB first, then env fallback)
 func GetInstagramConfig(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
+	orgID := middleware.GetOrgID(r)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	creds, err := getInstagramCredentials(ctx, userID)
+	creds, err := getInstagramCredentials(ctx, userID, orgID)
 	if err != nil {
 		slog.Error("get_instagram_config_error", "error", err)
 		http.Error(w, "Error checking config", http.StatusInternalServerError)
@@ -149,9 +152,9 @@ func GetInstagramConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// If source is "user", also load Meta Ads fields from the same config
-	if creds != nil && creds.Source == "user" && userID != primitive.NilObjectID {
+	if creds != nil && creds.Source == "user" && orgID != primitive.NilObjectID {
 		var cfg models.InstagramConfig
-		err := database.InstagramConfigs().FindOne(ctx, bson.M{"user_id": userID}).Decode(&cfg)
+		err := database.InstagramConfigs().FindOne(ctx, bson.M{"org_id": orgID}).Decode(&cfg)
 		if err == nil {
 			if cfg.AdAccountID != "" {
 				resp.AdAccountID = maskAccountID(cfg.AdAccountID)
@@ -190,11 +193,11 @@ func SaveInstagramConfig(w http.ResponseWriter, r *http.Request) {
 
 	// Check if config already exists (DB or env)
 	var existing models.InstagramConfig
-	existsErr := database.InstagramConfigs().FindOne(ctx, bson.M{"user_id": userID}).Decode(&existing)
+	existsErr := database.InstagramConfigs().FindOne(ctx, bson.M{"org_id": orgID}).Decode(&existing)
 	dbConfigExists := existsErr == nil
 
 	// Also check if env credentials are available
-	creds, _ := getInstagramCredentials(ctx, userID)
+	creds, _ := getInstagramCredentials(ctx, userID, orgID)
 	hasAnyCreds := dbConfigExists || creds != nil
 
 	// For brand new configs (no DB, no env), require full credentials
@@ -315,6 +318,7 @@ func DeleteInstagramConfig(w http.ResponseWriter, r *http.Request) {
 // TestInstagramConnection verifies credentials by fetching account info (read-only, no publish)
 func TestInstagramConnection(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
+	orgID := middleware.GetOrgID(r)
 	if userID == primitive.NilObjectID {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -323,7 +327,7 @@ func TestInstagramConnection(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	creds, err := getInstagramCredentials(ctx, userID)
+	creds, err := getInstagramCredentials(ctx, userID, orgID)
 	if err != nil {
 		http.Error(w, "Error getting credentials: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -380,9 +384,9 @@ func TestInstagramConnection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// If AdAccountID is configured, also test the ads account
-	if creds.Source == "user" && userID != primitive.NilObjectID {
+	if creds.Source == "user" && orgID != primitive.NilObjectID {
 		var cfg models.InstagramConfig
-		err := database.InstagramConfigs().FindOne(ctx, bson.M{"user_id": userID}).Decode(&cfg)
+		err := database.InstagramConfigs().FindOne(ctx, bson.M{"org_id": orgID}).Decode(&cfg)
 		if err == nil && cfg.AdAccountID != "" {
 			adAccountPath := cfg.AdAccountID
 			if !strings.HasPrefix(adAccountPath, "act_") {
@@ -413,6 +417,7 @@ func TestInstagramConnection(w http.ResponseWriter, r *http.Request) {
 // GetInstagramFeed fetches recent media from the Instagram account (read-only)
 func GetInstagramFeed(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
+	orgID := middleware.GetOrgID(r)
 	if userID == primitive.NilObjectID {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -421,7 +426,7 @@ func GetInstagramFeed(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	creds, err := getInstagramCredentials(ctx, userID)
+	creds, err := getInstagramCredentials(ctx, userID, orgID)
 	if err != nil {
 		http.Error(w, "Error getting credentials: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -934,7 +939,7 @@ func publishToInstagram(schedule models.InstagramSchedule) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
-	creds, err := getInstagramCredentials(ctx, schedule.UserID)
+	creds, err := getInstagramCredentials(ctx, schedule.UserID, schedule.OrgID)
 	if err != nil {
 		return "", fmt.Errorf("get credentials: %w", err)
 	}

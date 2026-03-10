@@ -36,11 +36,11 @@ type metaAdsCredentials struct {
 	Source      string // "user" or "env"
 }
 
-func getMetaAdsCredentials(ctx context.Context, userID primitive.ObjectID) (*metaAdsCredentials, error) {
-	// 1. Try per-user Meta Ads config from DB
-	if userID != primitive.NilObjectID && crypto.Available() {
+func getMetaAdsCredentials(ctx context.Context, userID, orgID primitive.ObjectID) (*metaAdsCredentials, error) {
+	// 1. Try per-org Meta Ads config from DB
+	if orgID != primitive.NilObjectID && crypto.Available() {
 		var cfg models.MetaAdsConfig
-		err := database.MetaAdsConfigs().FindOne(ctx, bson.M{"user_id": userID}).Decode(&cfg)
+		err := database.MetaAdsConfigs().FindOne(ctx, bson.M{"org_id": orgID}).Decode(&cfg)
 		if err == nil {
 			token, err := crypto.Decrypt(cfg.AccessTokenEnc)
 			if err != nil {
@@ -56,22 +56,10 @@ func getMetaAdsCredentials(ctx context.Context, userID primitive.ObjectID) (*met
 		if err != mongo.ErrNoDocuments {
 			return nil, fmt.Errorf("db error: %w", err)
 		}
-	}
 
-	// 2. Fallback to env vars
-	envCfg := config.Get()
-	if envCfg.MetaAdsAccountID != "" && envCfg.MetaAdsAccessToken != "" {
-		return &metaAdsCredentials{
-			AdAccountID: envCfg.MetaAdsAccountID,
-			Token:       envCfg.MetaAdsAccessToken,
-			Source:      "env",
-		}, nil
-	}
-
-	// 3. Fallback to Instagram config (unified token)
-	if userID != primitive.NilObjectID && crypto.Available() {
+		// 2. Fallback to Instagram config (unified token) — same org
 		var igCfg models.InstagramConfig
-		err := database.InstagramConfigs().FindOne(ctx, bson.M{"user_id": userID}).Decode(&igCfg)
+		err = database.InstagramConfigs().FindOne(ctx, bson.M{"org_id": orgID}).Decode(&igCfg)
 		if err == nil && igCfg.AdAccountID != "" {
 			token, err := crypto.Decrypt(igCfg.AccessTokenEnc)
 			if err != nil {
@@ -84,6 +72,19 @@ func getMetaAdsCredentials(ctx context.Context, userID primitive.ObjectID) (*met
 				Source:      "instagram",
 			}, nil
 		}
+
+		// org specified but no config found — don't fallback to env vars
+		return nil, nil
+	}
+
+	// 3. Fallback to env vars only when there's no org context
+	envCfg := config.Get()
+	if envCfg.MetaAdsAccountID != "" && envCfg.MetaAdsAccessToken != "" {
+		return &metaAdsCredentials{
+			AdAccountID: envCfg.MetaAdsAccountID,
+			Token:       envCfg.MetaAdsAccessToken,
+			Source:      "env",
+		}, nil
 	}
 
 	return nil, nil
@@ -92,6 +93,7 @@ func getMetaAdsCredentials(ctx context.Context, userID primitive.ObjectID) (*met
 // requireMetaAdsCreds is a helper that extracts user and credentials or writes an error.
 func requireMetaAdsCreds(w http.ResponseWriter, r *http.Request) (primitive.ObjectID, *metaAdsCredentials, bool) {
 	userID := middleware.GetUserID(r)
+	orgID := middleware.GetOrgID(r)
 	if userID == primitive.NilObjectID {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return primitive.NilObjectID, nil, false
@@ -100,7 +102,7 @@ func requireMetaAdsCreds(w http.ResponseWriter, r *http.Request) (primitive.Obje
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	creds, err := getMetaAdsCredentials(ctx, userID)
+	creds, err := getMetaAdsCredentials(ctx, userID, orgID)
 	if err != nil {
 		slog.Error("meta_ads_creds_error", "error", err)
 		http.Error(w, "Error getting credentials", http.StatusInternalServerError)
@@ -1962,7 +1964,7 @@ func CheckBudgetAlerts() {
 			continue
 		}
 
-		creds, err := getMetaAdsCredentials(ctx, alert.UserID)
+		creds, err := getMetaAdsCredentials(ctx, alert.UserID, alert.OrgID)
 		if err != nil || creds == nil {
 			continue
 		}

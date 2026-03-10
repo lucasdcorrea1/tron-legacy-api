@@ -195,7 +195,8 @@ func GetEngagementReport(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	userID := middleware.GetUserID(r)
-	creds, err := getInstagramCredentials(ctx, userID)
+	orgID := middleware.GetOrgID(r)
+	creds, err := getInstagramCredentials(ctx, userID, orgID)
 	if err != nil || creds == nil {
 		http.Error(w, `{"message":"Credenciais Instagram não configuradas"}`, http.StatusBadRequest)
 		return

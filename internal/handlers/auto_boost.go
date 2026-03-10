@@ -427,17 +427,22 @@ func ProcessAutoBoosts() {
 		return
 	}
 
-	// 2. Group rules by user_id
-	rulesByUser := make(map[primitive.ObjectID][]models.AutoBoostRule)
+	// 2. Group rules by {org_id, user_id}
+	type orgUser struct {
+		OrgID  primitive.ObjectID
+		UserID primitive.ObjectID
+	}
+	rulesByOrgUser := make(map[orgUser][]models.AutoBoostRule)
 	for _, rule := range allRules {
-		rulesByUser[rule.UserID] = append(rulesByUser[rule.UserID], rule)
+		key := orgUser{OrgID: rule.OrgID, UserID: rule.UserID}
+		rulesByOrgUser[key] = append(rulesByOrgUser[key], rule)
 	}
 
 	var totalBoosts, totalErrors int
 
-	// 3. Process each user
-	for userID, rules := range rulesByUser {
-		boosts, errors := processAutoBoostForUser(ctx, userID, rules)
+	// 3. Process each org+user
+	for key, rules := range rulesByOrgUser {
+		boosts, errors := processAutoBoostForUser(ctx, key.UserID, key.OrgID, rules)
 		totalBoosts += boosts
 		totalErrors += errors
 	}
@@ -451,9 +456,9 @@ func ProcessAutoBoosts() {
 	}
 }
 
-func processAutoBoostForUser(ctx context.Context, userID primitive.ObjectID, rules []models.AutoBoostRule) (int, int) {
+func processAutoBoostForUser(ctx context.Context, userID, orgID primitive.ObjectID, rules []models.AutoBoostRule) (int, int) {
 	// Get Instagram credentials
-	igCreds, err := getInstagramCredentials(ctx, userID)
+	igCreds, err := getInstagramCredentials(ctx, userID, orgID)
 	if err != nil || igCreds == nil {
 		if err != nil {
 			slog.Warn("auto_boost_ig_creds_error", "user_id", userID.Hex(), "error", err)
@@ -462,7 +467,7 @@ func processAutoBoostForUser(ctx context.Context, userID primitive.ObjectID, rul
 	}
 
 	// Get Meta Ads credentials
-	adsCreds, err := getMetaAdsCredentials(ctx, userID)
+	adsCreds, err := getMetaAdsCredentials(ctx, userID, orgID)
 	if err != nil || adsCreds == nil {
 		if err != nil {
 			slog.Warn("auto_boost_ads_creds_error", "user_id", userID.Hex(), "error", err)

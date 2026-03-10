@@ -263,10 +263,18 @@ func EnsureIndexes() error {
 		return err
 	}
 
-	// instagram_configs: unique index on user_id (one config per user)
+	// instagram_configs: unique index on org_id (one config per org)
 	_, err = InstagramConfigs().Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys:    bson.D{{Key: "user_id", Value: 1}},
+		Keys:    bson.D{{Key: "org_id", Value: 1}},
 		Options: options.Index().SetUnique(true),
+	})
+	if err != nil {
+		return err
+	}
+
+	// instagram_configs: index on instagram_account_id for webhook lookups
+	_, err = InstagramConfigs().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "instagram_account_id", Value: 1}},
 	})
 	if err != nil {
 		return err
@@ -339,9 +347,9 @@ func EnsureIndexes() error {
 		return err
 	}
 
-	// meta_ads_configs: unique index on user_id (one config per user)
+	// meta_ads_configs: unique index on org_id (one config per org)
 	_, err = MetaAdsConfigs().Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys:    bson.D{{Key: "user_id", Value: 1}},
+		Keys:    bson.D{{Key: "org_id", Value: 1}},
 		Options: options.Index().SetUnique(true),
 	})
 	if err != nil {
