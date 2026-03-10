@@ -1287,6 +1287,13 @@ func GetMetaAdsCampaignInsights(w http.ResponseWriter, r *http.Request) {
 		if dateStop := r.URL.Query().Get("date_stop"); dateStop != "" {
 			params.Set("time_range", fmt.Sprintf(`{"since":"%s","until":"%s"}`, dateStart, dateStop))
 		}
+	} else {
+		// Default: last 30 days
+		now := time.Now()
+		params.Set("time_range", fmt.Sprintf(`{"since":"%s","until":"%s"}`,
+			now.AddDate(0, 0, -30).Format("2006-01-02"),
+			now.Format("2006-01-02"),
+		))
 	}
 
 	result, err := metaGraphGet("/"+campaignID+"/insights", creds.Token, params)
