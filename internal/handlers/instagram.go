@@ -30,8 +30,8 @@ import (
 	"golang.org/x/image/draw"
 )
 
-// exchangeForLongLivedToken exchanges a short-lived Meta token for a long-lived one (~60 days).
-func exchangeForLongLivedToken(shortToken string) (string, error) {
+// ExchangeForLongLivedToken exchanges a short-lived Meta token for a long-lived one (~60 days).
+func ExchangeForLongLivedToken(shortToken string) (string, error) {
 	cfg := config.Get()
 	if cfg.MetaAppID == "" || cfg.MetaAppSecret == "" {
 		return "", fmt.Errorf("META_APP_ID or META_APP_SECRET not configured")
@@ -218,7 +218,7 @@ func SaveInstagramConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.AccessToken != "" {
 		// Try to exchange for a long-lived token
-		longToken, err := exchangeForLongLivedToken(req.AccessToken)
+		longToken, err := ExchangeForLongLivedToken(req.AccessToken)
 		if err != nil {
 			slog.Warn("long_lived_token_exchange_failed, using original token", "error", err)
 			longToken = req.AccessToken

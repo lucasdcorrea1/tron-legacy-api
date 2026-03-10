@@ -1405,6 +1405,7 @@ func GetMetaAdsAccountFinance(w http.ResponseWriter, r *http.Request) {
 		"remaining":       remaining,
 		"spend_today":     spendToday,
 		"spend_this_month": spendMonth,
+		"business_id":     creds.BusinessID,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -38,6 +38,10 @@ func New() http.Handler {
 	mux.HandleFunc("POST /api/v1/auth/refresh", handlers.Refresh)
 	mux.HandleFunc("POST /api/v1/auth/logout", handlers.Logout)
 
+	// Meta OAuth (auth required, no org context needed)
+	mux.Handle("GET /api/v1/auth/meta/url", middleware.Auth(http.HandlerFunc(handlers.MetaOAuthURL)))
+	mux.Handle("POST /api/v1/auth/meta/callback", middleware.Auth(http.HandlerFunc(handlers.MetaOAuthCallback)))
+
 	// Blog routes (public)
 	mux.HandleFunc("GET /api/v1/blog/posts", handlers.ListPosts)
 	mux.Handle("GET /api/v1/blog/posts/{slug}", middleware.OptionalAuth(http.HandlerFunc(handlers.GetPostBySlug)))
@@ -86,8 +90,9 @@ func New() http.Handler {
 	// Org switch (auth only)
 	mux.Handle("POST /api/v1/orgs/switch/{id}", middleware.Auth(http.HandlerFunc(handlers.SwitchOrg)))
 
-	// Accept invitation (auth only — no org context)
-	mux.Handle("POST /api/v1/invitations/{token}/accept", middleware.Auth(http.HandlerFunc(handlers.AcceptInvitation)))
+	// Invitations (auth only — no org context)
+	mux.Handle("GET /api/v1/invitations/mine", middleware.Auth(http.HandlerFunc(handlers.MyInvitations)))
+	mux.Handle("POST /api/v1/invitations/{id}/accept", middleware.Auth(http.HandlerFunc(handlers.AcceptInvitation)))
 
 	// Org detail routes (require org context)
 	mux.Handle("GET /api/v1/orgs/current", middleware.Auth(middleware.RequireOrg(http.HandlerFunc(handlers.GetOrg))))
@@ -133,18 +138,19 @@ func New() http.Handler {
 	mux.Handle("GET /api/v1/users", orgRoute("owner", "admin")(http.HandlerFunc(handlers.ListUsers)))
 	mux.Handle("PUT /api/v1/users/{id}/role", orgRoute("owner", "admin")(http.HandlerFunc(handlers.UpdateUserRole)))
 
-	// Email Marketing routes (org-scoped)
-	mux.Handle("GET /api/v1/admin/email-marketing/templates", orgPerm("email:manage")(http.HandlerFunc(handlers.ListEmailTemplates)))
-	mux.Handle("POST /api/v1/admin/email-marketing/templates/{id}/preview", orgPerm("email:manage")(http.HandlerFunc(handlers.PreviewEmailTemplate)))
-	mux.Handle("GET /api/v1/admin/email-marketing/audience", orgPerm("email:manage")(http.HandlerFunc(handlers.GetEmailAudience)))
-	mux.Handle("POST /api/v1/admin/email-marketing/send", orgPerm("email:manage")(http.HandlerFunc(handlers.SendMarketingEmail)))
-	mux.Handle("GET /api/v1/admin/email-marketing/subscribers", orgPerm("email:manage")(http.HandlerFunc(handlers.ListSubscribers)))
-	mux.Handle("DELETE /api/v1/admin/email-marketing/subscribers/{id}", orgRoute("owner", "admin")(http.HandlerFunc(handlers.DeleteSubscriber)))
-	mux.Handle("GET /api/v1/admin/email-marketing/broadcasts", orgPerm("email:manage")(http.HandlerFunc(handlers.ListBroadcasts)))
-	mux.Handle("GET /api/v1/admin/email-marketing/broadcasts/{id}", orgPerm("email:manage")(http.HandlerFunc(handlers.GetBroadcast)))
+	// Email Marketing routes (superuser only — internal Whodo tool)
+	suOnly := middleware.RequireRole("superadmin", "superuser")
+	mux.Handle("GET /api/v1/admin/email-marketing/templates", middleware.Auth(suOnly(http.HandlerFunc(handlers.ListEmailTemplates))))
+	mux.Handle("POST /api/v1/admin/email-marketing/templates/{id}/preview", middleware.Auth(suOnly(http.HandlerFunc(handlers.PreviewEmailTemplate))))
+	mux.Handle("GET /api/v1/admin/email-marketing/audience", middleware.Auth(suOnly(http.HandlerFunc(handlers.GetEmailAudience))))
+	mux.Handle("POST /api/v1/admin/email-marketing/send", middleware.Auth(suOnly(http.HandlerFunc(handlers.SendMarketingEmail))))
+	mux.Handle("GET /api/v1/admin/email-marketing/subscribers", middleware.Auth(suOnly(http.HandlerFunc(handlers.ListSubscribers))))
+	mux.Handle("DELETE /api/v1/admin/email-marketing/subscribers/{id}", middleware.Auth(suOnly(http.HandlerFunc(handlers.DeleteSubscriber))))
+	mux.Handle("GET /api/v1/admin/email-marketing/broadcasts", middleware.Auth(suOnly(http.HandlerFunc(handlers.ListBroadcasts))))
+	mux.Handle("GET /api/v1/admin/email-marketing/broadcasts/{id}", middleware.Auth(suOnly(http.HandlerFunc(handlers.GetBroadcast))))
 
-	// CTA analytics (org-scoped)
-	mux.Handle("GET /api/v1/admin/cta-analytics", orgRoute("owner", "admin")(http.HandlerFunc(handlers.GetCTAAnalytics)))
+	// CTA analytics (superuser only — internal Whodo tool)
+	mux.Handle("GET /api/v1/admin/cta-analytics", middleware.Auth(suOnly(http.HandlerFunc(handlers.GetCTAAnalytics))))
 
 	// Instagram scheduling routes (org-scoped)
 	mux.Handle("GET /api/v1/admin/instagram/config", orgRoute("owner", "admin", "member")(http.HandlerFunc(handlers.GetInstagramConfig)))

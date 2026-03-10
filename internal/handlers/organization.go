@@ -622,11 +622,71 @@ func InviteMember(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(invitation)
 }
 
+// MyInvitations returns pending invitations for the logged-in user's email.
+func MyInvitations(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r)
+	if userID == primitive.NilObjectID {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var user models.User
+	if err := database.Users().FindOne(ctx, bson.M{"_id": userID}).Decode(&user); err != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	cursor, err := database.OrgInvitations().Find(ctx, bson.M{
+		"email":  user.Email,
+		"status": "pending",
+	})
+	if err != nil {
+		http.Error(w, "Error fetching invitations", http.StatusInternalServerError)
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var invitations []models.OrgInvitation
+	cursor.All(ctx, &invitations)
+	if invitations == nil {
+		invitations = []models.OrgInvitation{}
+	}
+
+	// Enrich with org names
+	type invWithOrg struct {
+		models.OrgInvitation
+		OrgName string `json:"org_name"`
+	}
+	var result []invWithOrg
+	for _, inv := range invitations {
+		name := ""
+		var org models.Organization
+		if err := database.Organizations().FindOne(ctx, bson.M{"_id": inv.OrgID}).Decode(&org); err == nil {
+			name = org.Name
+		}
+		result = append(result, invWithOrg{OrgInvitation: inv, OrgName: name})
+	}
+	if result == nil {
+		result = []invWithOrg{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
 // AcceptInvitation accepts a pending invitation and adds the user to the organization.
 func AcceptInvitation(w http.ResponseWriter, r *http.Request) {
-	token := r.PathValue("token")
-	if token == "" {
-		http.Error(w, "Token is required", http.StatusBadRequest)
+	invID := r.PathValue("id")
+	if invID == "" {
+		http.Error(w, "Invitation ID is required", http.StatusBadRequest)
+		return
+	}
+	objID, err := primitive.ObjectIDFromHex(invID)
+	if err != nil {
+		http.Error(w, "Invalid invitation ID", http.StatusBadRequest)
 		return
 	}
 
@@ -641,8 +701,8 @@ func AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 
 	// Find invitation
 	var invitation models.OrgInvitation
-	err := database.OrgInvitations().FindOne(ctx, bson.M{
-		"token":  token,
+	err = database.OrgInvitations().FindOne(ctx, bson.M{
+		"_id":    objID,
 		"status": "pending",
 	}).Decode(&invitation)
 	if err != nil {
