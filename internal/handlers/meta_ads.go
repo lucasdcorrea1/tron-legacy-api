@@ -113,6 +113,11 @@ func requireMetaAdsCreds(w http.ResponseWriter, r *http.Request) (primitive.Obje
 		return primitive.NilObjectID, nil, false
 	}
 
+	// Allow override via query param (multi-account support)
+	if override := r.URL.Query().Get("ad_account_id"); override != "" {
+		creds.AdAccountID = override
+	}
+
 	return userID, creds, true
 }
 
@@ -203,6 +208,29 @@ func adAccountPath(adAccountID string) string {
 		return "/" + adAccountID
 	}
 	return "/act_" + adAccountID
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// AD ACCOUNTS (list all accounts the token has access to)
+// ══════════════════════════════════════════════════════════════════════
+
+func ListMetaAdsAccounts(w http.ResponseWriter, r *http.Request) {
+	_, creds, ok := requireMetaAdsCreds(w, r)
+	if !ok {
+		return
+	}
+
+	params := url.Values{}
+	params.Set("fields", "account_id,name,currency,account_status,amount_spent")
+
+	result, err := metaGraphGet("/me/adaccounts", creds.Token, params)
+	if err != nil {
+		slog.Error("meta_ads_list_accounts_error", "error", err)
+		http.Error(w, "Error fetching ad accounts: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+
+	json.NewEncoder(w).Encode(result)
 }
 
 // ══════════════════════════════════════════════════════════════════════

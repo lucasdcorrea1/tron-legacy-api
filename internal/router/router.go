@@ -186,6 +186,9 @@ func New() http.Handler {
 	mux.Handle("GET /api/v1/admin/instagram/analytics/autoreply", orgRoute("owner", "admin", "member")(http.HandlerFunc(handlers.GetAutoReplyAnalytics)))
 	mux.Handle("GET /api/v1/admin/instagram/analytics/engagement", orgRoute("owner", "admin", "member")(http.HandlerFunc(handlers.GetEngagementReport)))
 
+	// Meta Ads accounts (org-scoped)
+	mux.Handle("GET /api/v1/admin/meta-ads/accounts", orgRoute("owner", "admin", "member")(http.HandlerFunc(handlers.ListMetaAdsAccounts)))
+
 	// Meta Ads campaign routes (org-scoped)
 	mux.Handle("GET /api/v1/admin/meta-ads/campaigns", orgRoute("owner", "admin", "member")(http.HandlerFunc(handlers.ListMetaAdsCampaigns)))
 	mux.Handle("POST /api/v1/admin/meta-ads/campaigns", orgPerm("meta_ads:manage")(http.HandlerFunc(handlers.CreateMetaAdsCampaign)))

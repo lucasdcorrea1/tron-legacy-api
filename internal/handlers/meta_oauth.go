@@ -129,11 +129,17 @@ func MetaOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		businessID = igAccounts[0].PageID
 	}
 
-	// Step 4: Fetch ad accounts
-	adAccountID, err := fetchAdAccount(longToken)
+	// Step 4: Fetch ad accounts (all of them)
+	adAccounts, err := fetchAdAccounts(longToken)
 	if err != nil {
-		slog.Warn("meta_oauth_fetch_ad_account_failed", "error", err)
+		slog.Warn("meta_oauth_fetch_ad_accounts_failed", "error", err)
 		// Not fatal — user might not have ad accounts
+	}
+
+	// Pick first as default
+	var adAccountID string
+	if len(adAccounts) > 0 {
+		adAccountID = adAccounts[0].AccountID
 	}
 
 	// Step 5: Encrypt and save
@@ -181,29 +187,36 @@ func MetaOAuthCallback(w http.ResponseWriter, r *http.Request) {
 
 	needsManualConfig := igAccountID == ""
 	needsSelection := len(igAccounts) > 1
+	needsAdAccountSelection := len(adAccounts) > 1
 
 	slog.Info("meta_oauth_connected",
 		"org_id", orgID.Hex(),
 		"ig_account_id", igAccountID,
 		"ig_accounts_found", len(igAccounts),
+		"ad_accounts_found", len(adAccounts),
 		"has_ad_account", adAccountID != "",
 		"needs_manual_config", needsManualConfig,
 	)
 
 	// Return info
 	respData := map[string]interface{}{
-		"success":              true,
-		"instagram_account_id": maskID(igAccountID),
-		"ad_account_id":        maskID(adAccountID),
-		"business_id":          maskID(businessID),
-		"needs_manual_config":  needsManualConfig,
-		"needs_selection":      needsSelection,
+		"success":                    true,
+		"instagram_account_id":       maskID(igAccountID),
+		"ad_account_id":              maskID(adAccountID),
+		"business_id":                maskID(businessID),
+		"needs_manual_config":        needsManualConfig,
+		"needs_selection":            needsSelection,
+		"needs_ad_account_selection": needsAdAccountSelection,
 	}
 	if igReason != "" {
 		respData["ig_reason"] = igReason
 	}
 	if needsSelection {
 		respData["ig_accounts"] = igAccounts
+	}
+	if len(adAccounts) > 0 {
+		respData["ad_accounts"] = adAccounts
+		respData["ad_accounts_count"] = len(adAccounts)
 	}
 	json.NewEncoder(w).Encode(respData)
 }
@@ -325,8 +338,14 @@ func fetchInstagramAccounts(token string) ([]igAccount, string, error) {
 	return accounts, "", nil
 }
 
-// fetchAdAccount fetches the user's ad accounts and returns the first one.
-func fetchAdAccount(token string) (string, error) {
+// adAccount represents a found Meta Ads account.
+type adAccount struct {
+	AccountID string `json:"account_id"`
+	Name      string `json:"name"`
+}
+
+// fetchAdAccounts fetches all ad accounts the user has access to.
+func fetchAdAccounts(token string) ([]adAccount, error) {
 	apiURL := fmt.Sprintf(
 		"https://graph.facebook.com/v21.0/me/adaccounts?fields=account_id,name&access_token=%s",
 		url.QueryEscape(token),
@@ -334,7 +353,7 @@ func fetchAdAccount(token string) (string, error) {
 
 	resp, err := http.Get(apiURL)
 	if err != nil {
-		return "", fmt.Errorf("request failed: %w", err)
+		return nil, fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -349,22 +368,26 @@ func fetchAdAccount(token string) (string, error) {
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("decode failed: %w", err)
+		return nil, fmt.Errorf("decode failed: %w", err)
 	}
 
 	if result.Error != nil {
-		return "", fmt.Errorf("meta error: %s", result.Error.Message)
+		return nil, fmt.Errorf("meta error: %s", result.Error.Message)
 	}
 
-	if len(result.Data) > 0 {
+	var accounts []adAccount
+	for _, d := range result.Data {
 		slog.Info("meta_oauth_found_ad_account",
-			"account_id", result.Data[0].AccountID,
-			"name", result.Data[0].Name,
+			"account_id", d.AccountID,
+			"name", d.Name,
 		)
-		return result.Data[0].AccountID, nil
+		accounts = append(accounts, adAccount{
+			AccountID: d.AccountID,
+			Name:      d.Name,
+		})
 	}
 
-	return "", nil
+	return accounts, nil
 }
 
 // maskID returns a masked version of an ID string for display.
