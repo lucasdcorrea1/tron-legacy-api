@@ -144,12 +144,12 @@ func GetInstagramConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := models.InstagramConfigResponse{
-		Configured: creds != nil && creds.AccountID != "",
+		Configured: creds != nil,
+		HasToken:   creds != nil,
 	}
 	if creds != nil {
 		resp.AccountID = maskAccountID(creds.AccountID)
 		resp.Source = creds.Source
-		resp.HasToken = true
 	}
 
 	// If source is "user", also load Meta Ads fields from the same config
@@ -287,7 +287,7 @@ func SaveInstagramConfig(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// DeleteInstagramConfig removes per-user Instagram credentials
+// DeleteInstagramConfig removes per-org Instagram credentials
 func DeleteInstagramConfig(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	orgID := middleware.GetOrgID(r)
@@ -295,11 +295,22 @@ func DeleteInstagramConfig(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	if orgID == primitive.NilObjectID {
+		http.Error(w, "Organization context required", http.StatusBadRequest)
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	result, err := database.InstagramConfigs().DeleteOne(ctx, bson.M{"org_id": orgID})
+	filter := bson.M{"org_id": orgID}
+
+	slog.Info("instagram_config_deleting",
+		"user_id", userID.Hex(),
+		"org_id", orgID.Hex(),
+	)
+
+	result, err := database.InstagramConfigs().DeleteOne(ctx, filter)
 	if err != nil {
 		slog.Error("delete_instagram_config_error", "error", err)
 		http.Error(w, "Error deleting config", http.StatusInternalServerError)
@@ -311,7 +322,11 @@ func DeleteInstagramConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slog.Info("instagram_config_deleted", "user_id", userID.Hex())
+	slog.Info("instagram_config_deleted",
+		"user_id", userID.Hex(),
+		"org_id", orgID.Hex(),
+		"deleted_count", result.DeletedCount,
+	)
 
 	json.NewEncoder(w).Encode(map[string]string{"message": "Config deleted"})
 }
