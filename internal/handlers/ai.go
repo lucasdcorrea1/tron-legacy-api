@@ -75,27 +75,12 @@ func SaveAIConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.APIKey == "" {
-		http.Error(w, "api_key is required", http.StatusBadRequest)
-		return
-	}
-
 	provider := req.Provider
 	if provider == "" {
 		provider = "gemini"
 	}
 	if provider != "gemini" && provider != "claude" {
 		http.Error(w, "provider must be 'gemini' or 'claude'", http.StatusBadRequest)
-		return
-	}
-
-	// Validate key prefix
-	if provider == "claude" && !strings.HasPrefix(req.APIKey, "sk-ant-") {
-		http.Error(w, "API key da Anthropic deve comecar com sk-ant-", http.StatusBadRequest)
-		return
-	}
-	if provider == "gemini" && !strings.HasPrefix(req.APIKey, "AIza") {
-		http.Error(w, "API key do Google deve comecar com AIza", http.StatusBadRequest)
 		return
 	}
 
@@ -110,15 +95,68 @@ func SaveAIConfig(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Check if config already exists
+	var existing models.AIConfig
+	existsErr := database.AIConfigs().FindOne(ctx, bson.M{"org_id": orgID}).Decode(&existing)
+	hasExisting := existsErr == nil
+
+	// If no key provided, must have existing config (just updating provider/model)
+	if req.APIKey == "" {
+		if !hasExisting {
+			http.Error(w, "api_key is required", http.StatusBadRequest)
+			return
+		}
+		// Update only provider and model, keep existing key
+		now := time.Now()
+		_, err := database.AIConfigs().UpdateOne(
+			ctx,
+			bson.M{"org_id": orgID},
+			bson.M{"$set": bson.M{
+				"provider":   provider,
+				"model":      model,
+				"updated_at": now,
+			}},
+		)
+		if err != nil {
+			slog.Error("ai_config_save_error", "error", err)
+			http.Error(w, "Failed to save AI config", http.StatusInternalServerError)
+			return
+		}
+
+		// Get masked key from existing
+		keyPrefix := "****"
+		if key, decErr := crypto.Decrypt(existing.APIKeyEnc); decErr == nil {
+			keyPrefix = maskAPIKey(key)
+		}
+
+		json.NewEncoder(w).Encode(models.AIConfigResponse{
+			Configured: true,
+			Provider:   provider,
+			Model:      model,
+			KeyPrefix:  keyPrefix,
+		})
+		return
+	}
+
+	// Validate key prefix when a new key is provided
+	if provider == "claude" && !strings.HasPrefix(req.APIKey, "sk-ant-") {
+		http.Error(w, "API key da Anthropic deve comecar com sk-ant-", http.StatusBadRequest)
+		return
+	}
+	if provider == "gemini" && !strings.HasPrefix(req.APIKey, "AIza") {
+		http.Error(w, "API key do Google deve comecar com AIza", http.StatusBadRequest)
+		return
+	}
+
 	encrypted, err := crypto.Encrypt(req.APIKey)
 	if err != nil {
 		slog.Error("ai_config_encrypt_error", "error", err)
 		http.Error(w, "Failed to encrypt API key", http.StatusInternalServerError)
 		return
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 
 	now := time.Now()
 	_, err = database.AIConfigs().UpdateOne(
