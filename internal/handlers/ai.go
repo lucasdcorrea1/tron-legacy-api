@@ -278,6 +278,20 @@ func GenerateAIContent(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "API key invalida. Verifique sua chave em Perfil > IA.", http.StatusUnauthorized)
 			return
 		}
+		if strings.Contains(claudeResp.Error.Message, "credit balance is too low") ||
+			strings.Contains(claudeResp.Error.Message, "billing") {
+			http.Error(w, "Sem creditos na Anthropic. Adicione creditos em console.anthropic.com/settings/billing", http.StatusPaymentRequired)
+			return
+		}
+		if strings.Contains(claudeResp.Error.Type, "rate_limit_error") ||
+			strings.Contains(claudeResp.Error.Message, "rate limit") {
+			http.Error(w, "Limite de requisicoes atingido. Aguarde alguns segundos e tente novamente.", http.StatusTooManyRequests)
+			return
+		}
+		if strings.Contains(claudeResp.Error.Type, "overloaded_error") {
+			http.Error(w, "A IA esta sobrecarregada. Tente novamente em alguns segundos.", http.StatusServiceUnavailable)
+			return
+		}
 		http.Error(w, fmt.Sprintf("Erro da IA: %s", claudeResp.Error.Message), http.StatusBadGateway)
 		return
 	}
