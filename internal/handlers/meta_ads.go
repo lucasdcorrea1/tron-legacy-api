@@ -10,6 +10,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1290,6 +1291,110 @@ func GetMetaAdsCampaignInsights(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(result)
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ACCOUNT FINANCE
+// ══════════════════════════════════════════════════════════════════════
+
+func GetMetaAdsAccountFinance(w http.ResponseWriter, r *http.Request) {
+	_, creds, ok := requireMetaAdsCreds(w, r)
+	if !ok {
+		return
+	}
+
+	accountPath := adAccountPath(creds.AdAccountID)
+
+	// Fetch account-level financial fields
+	acctParams := url.Values{}
+	acctParams.Set("fields", "name,account_status,spend_cap,amount_spent,balance,currency")
+
+	acctResult, err := metaGraphGet(accountPath, creds.Token, acctParams)
+	if err != nil {
+		http.Error(w, "Error fetching account info: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+
+	// Fetch today's spend
+	todayParams := url.Values{}
+	todayParams.Set("fields", "spend")
+	todayParams.Set("date_preset", "today")
+
+	todayResult, err := metaGraphGet(accountPath+"/insights", creds.Token, todayParams)
+	if err != nil {
+		slog.Warn("meta_ads_finance_today_insights", "error", err)
+	}
+
+	// Fetch this month's spend
+	monthParams := url.Values{}
+	monthParams.Set("fields", "spend")
+	monthParams.Set("date_preset", "this_month")
+
+	monthResult, err := metaGraphGet(accountPath+"/insights", creds.Token, monthParams)
+	if err != nil {
+		slog.Warn("meta_ads_finance_month_insights", "error", err)
+	}
+
+	// Parse cents-string values from account object
+	parseCents := func(v interface{}) float64 {
+		s, _ := v.(string)
+		if s == "" {
+			return 0
+		}
+		f, _ := strconv.ParseFloat(s, 64)
+		return f / 100.0
+	}
+
+	spendCap := parseCents(acctResult["spend_cap"])
+	amountSpent := parseCents(acctResult["amount_spent"])
+	balance := parseCents(acctResult["balance"])
+
+	hasSpendCap := spendCap > 0
+	remaining := -1.0
+	if hasSpendCap {
+		remaining = spendCap - amountSpent
+	}
+
+	// Extract spend from insights data arrays
+	extractSpend := func(result map[string]interface{}) float64 {
+		if result == nil {
+			return 0
+		}
+		dataRaw, ok := result["data"]
+		if !ok {
+			return 0
+		}
+		dataArr, ok := dataRaw.([]interface{})
+		if !ok || len(dataArr) == 0 {
+			return 0
+		}
+		row, ok := dataArr[0].(map[string]interface{})
+		if !ok {
+			return 0
+		}
+		s, _ := row["spend"].(string)
+		f, _ := strconv.ParseFloat(s, 64)
+		return f
+	}
+
+	spendToday := extractSpend(todayResult)
+	spendMonth := extractSpend(monthResult)
+
+	resp := map[string]interface{}{
+		"name":            acctResult["name"],
+		"currency":        acctResult["currency"],
+		"account_status":  acctResult["account_status"],
+		"spend_cap":       spendCap,
+		"amount_spent":    amountSpent,
+		"balance":         balance,
+		"has_spend_cap":   hasSpendCap,
+		"remaining":       remaining,
+		"spend_today":     spendToday,
+		"spend_this_month": spendMonth,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 // ══════════════════════════════════════════════════════════════════════

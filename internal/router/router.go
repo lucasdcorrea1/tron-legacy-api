@@ -197,6 +197,9 @@ func New() http.Handler {
 	mux.Handle("GET /api/v1/admin/meta-ads/insights", orgRoute("owner", "admin", "member")(http.HandlerFunc(handlers.GetMetaAdsInsights)))
 	mux.Handle("GET /api/v1/admin/meta-ads/campaigns/{id}/insights", orgRoute("owner", "admin", "member")(http.HandlerFunc(handlers.GetMetaAdsCampaignInsights)))
 
+	// Meta Ads account finance (org-scoped)
+	mux.Handle("GET /api/v1/admin/meta-ads/account/finance", orgRoute("owner", "admin", "member")(http.HandlerFunc(handlers.GetMetaAdsAccountFinance)))
+
 	// Meta Ads upload (org-scoped)
 	mux.Handle("POST /api/v1/admin/meta-ads/upload/image", orgRoute("owner", "admin", "member")(http.HandlerFunc(handlers.UploadMetaAdsImage)))
 	mux.Handle("POST /api/v1/admin/meta-ads/upload/video", orgRoute("owner", "admin", "member")(http.HandlerFunc(handlers.UploadMetaAdsVideo)))
