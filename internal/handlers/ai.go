@@ -21,12 +21,15 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// maskAPIKey returns a masked version of the API key (e.g. "sk-ant-...xYz")
+// maskAPIKey returns a masked version of the API key
 func maskAPIKey(key string) string {
 	if len(key) > 12 {
 		return key[:7] + "..." + key[len(key)-3:]
 	}
-	return "sk-ant-***"
+	if len(key) > 6 {
+		return key[:4] + "..."
+	}
+	return "****"
 }
 
 // GetAIConfig returns whether AI is configured for the current org
@@ -41,9 +44,9 @@ func GetAIConfig(w http.ResponseWriter, r *http.Request) {
 
 	resp := models.AIConfigResponse{}
 	if err == nil {
-		// Decrypt key just to get the prefix for display
 		if key, decErr := crypto.Decrypt(cfg.APIKeyEnc); decErr == nil {
 			resp.Configured = true
+			resp.Provider = cfg.Provider
 			resp.Model = cfg.Model
 			resp.KeyPrefix = maskAPIKey(key)
 		}
@@ -77,14 +80,34 @@ func SaveAIConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !strings.HasPrefix(req.APIKey, "sk-ant-") {
-		http.Error(w, "API key must start with sk-ant-", http.StatusBadRequest)
+	provider := req.Provider
+	if provider == "" {
+		provider = "gemini"
+	}
+	if provider != "gemini" && provider != "claude" {
+		http.Error(w, "provider must be 'gemini' or 'claude'", http.StatusBadRequest)
 		return
 	}
 
+	// Validate key prefix
+	if provider == "claude" && !strings.HasPrefix(req.APIKey, "sk-ant-") {
+		http.Error(w, "API key da Anthropic deve comecar com sk-ant-", http.StatusBadRequest)
+		return
+	}
+	if provider == "gemini" && !strings.HasPrefix(req.APIKey, "AIza") {
+		http.Error(w, "API key do Google deve comecar com AIza", http.StatusBadRequest)
+		return
+	}
+
+	// Default models
 	model := req.Model
 	if model == "" {
-		model = "claude-sonnet-4-5-20250929"
+		switch provider {
+		case "gemini":
+			model = "gemini-2.0-flash"
+		case "claude":
+			model = "claude-sonnet-4-5-20250929"
+		}
 	}
 
 	encrypted, err := crypto.Encrypt(req.APIKey)
@@ -104,6 +127,7 @@ func SaveAIConfig(w http.ResponseWriter, r *http.Request) {
 		bson.M{
 			"$set": bson.M{
 				"user_id":     userID,
+				"provider":    provider,
 				"api_key_enc": encrypted,
 				"model":       model,
 				"updated_at":  now,
@@ -123,6 +147,7 @@ func SaveAIConfig(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(models.AIConfigResponse{
 		Configured: true,
+		Provider:   provider,
 		Model:      model,
 		KeyPrefix:  maskAPIKey(req.APIKey),
 	})
@@ -145,36 +170,7 @@ func DeleteAIConfig(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]bool{"deleted": true})
 }
 
-// claudeMessage represents a message in the Claude API request
-type claudeMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-// claudeRequest represents the Claude API request body
-type claudeRequest struct {
-	Model     string          `json:"model"`
-	MaxTokens int             `json:"max_tokens"`
-	Messages  []claudeMessage `json:"messages"`
-}
-
-// claudeResponse represents the Claude API response
-type claudeResponse struct {
-	Content []struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
-	} `json:"content"`
-	Usage struct {
-		InputTokens  int `json:"input_tokens"`
-		OutputTokens int `json:"output_tokens"`
-	} `json:"usage"`
-	Error *struct {
-		Type    string `json:"type"`
-		Message string `json:"message"`
-	} `json:"error"`
-}
-
-// GenerateAIContent generates content using Claude API
+// GenerateAIContent generates content using the configured AI provider
 func GenerateAIContent(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 
@@ -189,7 +185,6 @@ func GenerateAIContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Load AI config
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -217,7 +212,6 @@ func GenerateAIContent(w http.ResponseWriter, r *http.Request) {
 		lang = "pt-BR"
 	}
 
-	// Build prompt
 	var prompt string
 	switch req.Type {
 	case "caption":
@@ -226,24 +220,185 @@ func GenerateAIContent(w http.ResponseWriter, r *http.Request) {
 		prompt = buildCampaignNamePrompt(req.Context, lang)
 	}
 
-	// Call Claude API
+	provider := cfg.Provider
+	if provider == "" {
+		provider = "claude" // backwards compat for existing configs
+	}
+
+	var text string
+	var tokensUsed int
+
+	switch provider {
+	case "gemini":
+		text, tokensUsed, err = callGemini(apiKey, cfg.Model, prompt)
+	case "claude":
+		text, tokensUsed, err = callClaude(apiKey, cfg.Model, prompt)
+	default:
+		http.Error(w, "Unknown provider", http.StatusInternalServerError)
+		return
+	}
+
+	if err != nil {
+		// err message is already user-friendly
+		slog.Error("ai_generate_error", "provider", provider, "error", err)
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+
+	result := models.AIGenerateResponse{
+		Text:       text,
+		TokensUsed: tokensUsed,
+	}
+
+	if req.Type == "caption" {
+		result.CampaignName = extractCampaignSuggestion(text)
+	}
+
+	json.NewEncoder(w).Encode(result)
+}
+
+// ── Gemini ──────────────────────────────────────────────────────────
+
+type geminiRequest struct {
+	Contents []geminiContent `json:"contents"`
+}
+
+type geminiContent struct {
+	Parts []geminiPart `json:"parts"`
+}
+
+type geminiPart struct {
+	Text string `json:"text"`
+}
+
+type geminiResponse struct {
+	Candidates []struct {
+		Content struct {
+			Parts []struct {
+				Text string `json:"text"`
+			} `json:"parts"`
+		} `json:"content"`
+	} `json:"candidates"`
+	UsageMetadata *struct {
+		PromptTokenCount     int `json:"promptTokenCount"`
+		CandidatesTokenCount int `json:"candidatesTokenCount"`
+		TotalTokenCount      int `json:"totalTokenCount"`
+	} `json:"usageMetadata"`
+	Error *struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Status  string `json:"status"`
+	} `json:"error"`
+}
+
+func callGemini(apiKey, model, prompt string) (string, int, error) {
+	if model == "" {
+		model = "gemini-2.0-flash"
+	}
+
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", model, apiKey)
+
+	reqBody := geminiRequest{
+		Contents: []geminiContent{{
+			Parts: []geminiPart{{Text: prompt}},
+		}},
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", 0, fmt.Errorf("Erro interno ao montar requisicao")
+	}
+
+	httpClient := &http.Client{Timeout: 30 * time.Second}
+	resp, err := httpClient.Post(url, "application/json", bytes.NewReader(body))
+	if err != nil {
+		return "", 0, fmt.Errorf("Erro ao conectar com a IA. Tente novamente.")
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", 0, fmt.Errorf("Erro ao ler resposta da IA")
+	}
+
+	var gemResp geminiResponse
+	if err := json.Unmarshal(respBody, &gemResp); err != nil {
+		slog.Error("gemini_parse_error", "body", string(respBody))
+		return "", 0, fmt.Errorf("Erro ao processar resposta da IA")
+	}
+
+	if gemResp.Error != nil {
+		slog.Error("gemini_api_error", "code", gemResp.Error.Code, "message", gemResp.Error.Message)
+		if gemResp.Error.Code == 400 && strings.Contains(gemResp.Error.Message, "API key") {
+			return "", 0, fmt.Errorf("API key invalida. Verifique sua chave em Perfil > IA.")
+		}
+		if gemResp.Error.Code == 429 {
+			return "", 0, fmt.Errorf("Limite de requisicoes atingido. Aguarde e tente novamente.")
+		}
+		return "", 0, fmt.Errorf("Erro da IA: %s", gemResp.Error.Message)
+	}
+
+	if len(gemResp.Candidates) == 0 || len(gemResp.Candidates[0].Content.Parts) == 0 {
+		return "", 0, fmt.Errorf("Resposta vazia da IA")
+	}
+
+	text := gemResp.Candidates[0].Content.Parts[0].Text
+	tokens := 0
+	if gemResp.UsageMetadata != nil {
+		tokens = gemResp.UsageMetadata.TotalTokenCount
+	}
+
+	return text, tokens, nil
+}
+
+// ── Claude ──────────────────────────────────────────────────────────
+
+type claudeMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type claudeRequest struct {
+	Model     string          `json:"model"`
+	MaxTokens int             `json:"max_tokens"`
+	Messages  []claudeMessage `json:"messages"`
+}
+
+type claudeResponse struct {
+	Content []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	} `json:"content"`
+	Usage struct {
+		InputTokens  int `json:"input_tokens"`
+		OutputTokens int `json:"output_tokens"`
+	} `json:"usage"`
+	Error *struct {
+		Type    string `json:"type"`
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
+func callClaude(apiKey, model, prompt string) (string, int, error) {
+	if model == "" {
+		model = "claude-sonnet-4-5-20250929"
+	}
+
 	claudeReq := claudeRequest{
-		Model:     cfg.Model,
+		Model:     model,
 		MaxTokens: 1024,
 		Messages:  []claudeMessage{{Role: "user", Content: prompt}},
 	}
 
 	body, err := json.Marshal(claudeReq)
 	if err != nil {
-		http.Error(w, "Failed to build request", http.StatusInternalServerError)
-		return
+		return "", 0, fmt.Errorf("Erro interno ao montar requisicao")
 	}
 
 	httpClient := &http.Client{Timeout: 30 * time.Second}
 	httpReq, err := http.NewRequest("POST", "https://api.anthropic.com/v1/messages", bytes.NewReader(body))
 	if err != nil {
-		http.Error(w, "Failed to create request", http.StatusInternalServerError)
-		return
+		return "", 0, fmt.Errorf("Erro interno ao criar requisicao")
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
@@ -252,70 +407,51 @@ func GenerateAIContent(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := httpClient.Do(httpReq)
 	if err != nil {
-		slog.Error("claude_api_error", "error", err)
-		http.Error(w, "Erro ao conectar com a IA. Tente novamente.", http.StatusBadGateway)
-		return
+		return "", 0, fmt.Errorf("Erro ao conectar com a IA. Tente novamente.")
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		http.Error(w, "Failed to read AI response", http.StatusInternalServerError)
-		return
+		return "", 0, fmt.Errorf("Erro ao ler resposta da IA")
 	}
 
 	var claudeResp claudeResponse
 	if err := json.Unmarshal(respBody, &claudeResp); err != nil {
 		slog.Error("claude_parse_error", "body", string(respBody))
-		http.Error(w, "Failed to parse AI response", http.StatusInternalServerError)
-		return
+		return "", 0, fmt.Errorf("Erro ao processar resposta da IA")
 	}
 
 	if claudeResp.Error != nil {
 		slog.Error("claude_api_error", "type", claudeResp.Error.Type, "message", claudeResp.Error.Message)
 		if strings.Contains(claudeResp.Error.Message, "invalid x-api-key") ||
 			strings.Contains(claudeResp.Error.Type, "authentication_error") {
-			http.Error(w, "API key invalida. Verifique sua chave em Perfil > IA.", http.StatusUnauthorized)
-			return
+			return "", 0, fmt.Errorf("API key invalida. Verifique sua chave em Perfil > IA.")
 		}
 		if strings.Contains(claudeResp.Error.Message, "credit balance is too low") ||
 			strings.Contains(claudeResp.Error.Message, "billing") {
-			http.Error(w, "Sem creditos na Anthropic. Adicione creditos em console.anthropic.com/settings/billing", http.StatusPaymentRequired)
-			return
+			return "", 0, fmt.Errorf("Sem creditos na Anthropic. Adicione creditos em console.anthropic.com/settings/billing")
 		}
-		if strings.Contains(claudeResp.Error.Type, "rate_limit_error") ||
-			strings.Contains(claudeResp.Error.Message, "rate limit") {
-			http.Error(w, "Limite de requisicoes atingido. Aguarde alguns segundos e tente novamente.", http.StatusTooManyRequests)
-			return
+		if strings.Contains(claudeResp.Error.Type, "rate_limit_error") {
+			return "", 0, fmt.Errorf("Limite de requisicoes atingido. Aguarde e tente novamente.")
 		}
 		if strings.Contains(claudeResp.Error.Type, "overloaded_error") {
-			http.Error(w, "A IA esta sobrecarregada. Tente novamente em alguns segundos.", http.StatusServiceUnavailable)
-			return
+			return "", 0, fmt.Errorf("A IA esta sobrecarregada. Tente novamente em alguns segundos.")
 		}
-		http.Error(w, fmt.Sprintf("Erro da IA: %s", claudeResp.Error.Message), http.StatusBadGateway)
-		return
+		return "", 0, fmt.Errorf("Erro da IA: %s", claudeResp.Error.Message)
 	}
 
 	if len(claudeResp.Content) == 0 {
-		http.Error(w, "Empty response from AI", http.StatusInternalServerError)
-		return
+		return "", 0, fmt.Errorf("Resposta vazia da IA")
 	}
 
 	text := claudeResp.Content[0].Text
-	tokensUsed := claudeResp.Usage.InputTokens + claudeResp.Usage.OutputTokens
+	tokens := claudeResp.Usage.InputTokens + claudeResp.Usage.OutputTokens
 
-	result := models.AIGenerateResponse{
-		Text:       text,
-		TokensUsed: tokensUsed,
-	}
-
-	// For caption, also suggest a campaign name
-	if req.Type == "caption" {
-		result.CampaignName = extractCampaignSuggestion(text)
-	}
-
-	json.NewEncoder(w).Encode(result)
+	return text, tokens, nil
 }
+
+// ── Prompts ─────────────────────────────────────────────────────────
 
 func buildCaptionPrompt(userContext string, mediaCount int, mediaType string, lang string) string {
 	var sb strings.Builder
@@ -361,15 +497,12 @@ func buildCampaignNamePrompt(userContext string, lang string) string {
 	return sb.String()
 }
 
-// extractCampaignSuggestion extracts a short campaign name suggestion from caption text
 func extractCampaignSuggestion(caption string) string {
-	// Take the first line as a base, cleaned up
 	lines := strings.SplitN(caption, "\n", 2)
 	first := strings.TrimSpace(lines[0])
 
-	// Remove emojis and hashtags, keep first ~50 chars
 	cleaned := strings.Map(func(r rune) rune {
-		if r >= 0x1F600 && r <= 0x1FAFF { // emoji ranges
+		if r >= 0x1F600 && r <= 0x1FAFF {
 			return -1
 		}
 		if r == '#' {
