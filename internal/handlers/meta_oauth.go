@@ -115,13 +115,18 @@ func MetaOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		longToken = shortToken
 	}
 
-	// Step 3: Fetch pages + instagram_business_account
-	igAccountID, businessID, igErr := fetchInstagramAccount(longToken)
-	igReason := ""
+	// Step 3: Fetch pages + instagram_business_account(s)
+	igAccounts, igReason, igErr := fetchInstagramAccounts(longToken)
 	if igErr != nil {
-		igReason = igErr.Error() // "no_pages" or "no_ig_linked"
-		slog.Warn("meta_oauth_fetch_ig_account_failed", "reason", igReason)
+		slog.Warn("meta_oauth_fetch_ig_accounts_failed", "error", igErr)
 		// Not fatal — user can configure manually later
+	}
+
+	// Pick first account to auto-configure (if multiple, frontend lets user choose)
+	var igAccountID, businessID string
+	if len(igAccounts) > 0 {
+		igAccountID = igAccounts[0].IGAccountID
+		businessID = igAccounts[0].PageID
 	}
 
 	// Step 4: Fetch ad accounts
@@ -175,26 +180,32 @@ func MetaOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	needsManualConfig := igAccountID == ""
+	needsSelection := len(igAccounts) > 1
 
 	slog.Info("meta_oauth_connected",
 		"org_id", orgID.Hex(),
 		"ig_account_id", igAccountID,
+		"ig_accounts_found", len(igAccounts),
 		"has_ad_account", adAccountID != "",
 		"needs_manual_config", needsManualConfig,
 	)
 
-	// Return masked info
-	resp := map[string]interface{}{
+	// Return info
+	respData := map[string]interface{}{
 		"success":              true,
 		"instagram_account_id": maskID(igAccountID),
 		"ad_account_id":        maskID(adAccountID),
 		"business_id":          maskID(businessID),
 		"needs_manual_config":  needsManualConfig,
+		"needs_selection":      needsSelection,
 	}
 	if igReason != "" {
-		resp["ig_reason"] = igReason
+		respData["ig_reason"] = igReason
 	}
-	json.NewEncoder(w).Encode(resp)
+	if needsSelection {
+		respData["ig_accounts"] = igAccounts
+	}
+	json.NewEncoder(w).Encode(respData)
 }
 
 // exchangeCodeForToken exchanges an OAuth authorization code for a short-lived access token.
@@ -236,9 +247,16 @@ func exchangeCodeForToken(appID, appSecret, code, redirectURI string) (string, e
 	return result.AccessToken, nil
 }
 
-// fetchInstagramAccount fetches the user's pages and finds the one with an instagram_business_account.
-// Returns (instagramAccountID, pageID/businessID, error).
-func fetchInstagramAccount(token string) (string, string, error) {
+// igAccount represents a found Instagram Business account linked to a Facebook Page.
+type igAccount struct {
+	IGAccountID string `json:"ig_account_id"`
+	PageID      string `json:"page_id"`
+	PageName    string `json:"page_name"`
+}
+
+// fetchInstagramAccounts fetches the user's pages and returns all that have an instagram_business_account.
+// Returns (accounts, reason, error). reason is "no_pages" or "no_ig_linked" when no accounts found.
+func fetchInstagramAccounts(token string) ([]igAccount, string, error) {
 	apiURL := fmt.Sprintf(
 		"https://graph.facebook.com/v21.0/me/accounts?fields=id,name,instagram_business_account&access_token=%s",
 		url.QueryEscape(token),
@@ -246,7 +264,7 @@ func fetchInstagramAccount(token string) (string, string, error) {
 
 	resp, err := http.Get(apiURL)
 	if err != nil {
-		return "", "", fmt.Errorf("request failed: %w", err)
+		return nil, "", fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -264,36 +282,47 @@ func fetchInstagramAccount(token string) (string, string, error) {
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", "", fmt.Errorf("decode failed: %w", err)
+		return nil, "", fmt.Errorf("decode failed: %w", err)
 	}
 
 	if result.Error != nil {
-		return "", "", fmt.Errorf("meta error: %s", result.Error.Message)
+		return nil, "", fmt.Errorf("meta error: %s", result.Error.Message)
 	}
 
 	if len(result.Data) == 0 {
 		slog.Warn("meta_oauth_no_pages_found", "hint", "user has no Facebook Pages")
-		return "", "", fmt.Errorf("no_pages")
+		return nil, "no_pages", nil
 	}
 
-	pageNames := make([]string, 0, len(result.Data))
+	var accounts []igAccount
 	for _, page := range result.Data {
-		pageNames = append(pageNames, page.Name)
 		if page.InstagramBusinessAccount != nil && page.InstagramBusinessAccount.ID != "" {
 			slog.Info("meta_oauth_found_ig_account",
 				"page_id", page.ID,
 				"page_name", page.Name,
 				"ig_account_id", page.InstagramBusinessAccount.ID,
 			)
-			return page.InstagramBusinessAccount.ID, page.ID, nil
+			accounts = append(accounts, igAccount{
+				IGAccountID: page.InstagramBusinessAccount.ID,
+				PageID:      page.ID,
+				PageName:    page.Name,
+			})
 		}
 	}
 
-	slog.Warn("meta_oauth_pages_without_ig",
-		"page_count", len(result.Data),
-		"page_names", pageNames,
-	)
-	return "", "", fmt.Errorf("no_ig_linked")
+	if len(accounts) == 0 {
+		pageNames := make([]string, 0, len(result.Data))
+		for _, page := range result.Data {
+			pageNames = append(pageNames, page.Name)
+		}
+		slog.Warn("meta_oauth_pages_without_ig",
+			"page_count", len(result.Data),
+			"page_names", pageNames,
+		)
+		return nil, "no_ig_linked", nil
+	}
+
+	return accounts, "", nil
 }
 
 // fetchAdAccount fetches the user's ad accounts and returns the first one.
