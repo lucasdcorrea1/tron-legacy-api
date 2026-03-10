@@ -205,8 +205,8 @@ func processComment(igAccountID string, comment webhookCommentValue) {
 		return
 	}
 
-	// Find matching active rules
-	rules, err := findMatchingRules(ctx, comment.Text, "comment", comment.Media.ID)
+	// Find matching active rules (scoped to org)
+	rules, err := findMatchingRules(ctx, comment.Text, "comment", comment.Media.ID, creds.OrgID)
 	if err != nil {
 		slog.Error("webhook_comment: find rules", "error", err)
 		return
@@ -229,7 +229,7 @@ func processComment(igAccountID string, comment webhookCommentValue) {
 
 		// Check 24h cooldown
 		if hasCooldown(ctx, comment.From.ID, rule.ID) {
-			logAutoReply(ctx, rule, "comment", comment.From.ID, comment.From.Username, comment.Text, rule.ResponseMessage, "", "skipped_cooldown", "")
+			logAutoReply(ctx, rule, "comment", comment.From.ID, comment.From.Username, comment.Text, rule.ResponseMessage, "", "skipped_cooldown", "", creds.OrgID)
 			BroadcastWebhookEvent(WebhookSSEEvent{
 				Type: "comment", RuleName: rule.Name, Sender: comment.From.Username,
 				TriggerText: comment.Text, Response: rule.ResponseMessage,
@@ -250,12 +250,12 @@ func processComment(igAccountID string, comment webhookCommentValue) {
 			}
 		}
 
-		// 2) Send DM with template variables
+		// 2) Send DM via Private Reply (uses comment_id, not user ID)
 		dmMsg := replaceTemplateVars(rule.ResponseMessage, comment.From.Username, keyword)
-		err := sendInstagramDM(creds.AccountID, creds.Token, comment.From.ID, dmMsg)
+		err := sendPrivateReply(creds.AccountID, creds.Token, comment.ID, dmMsg)
 		if err != nil {
 			slog.Error("webhook_comment: send DM failed", "error", err, "sender", comment.From.ID, "rule", rule.Name)
-			logAutoReply(ctx, rule, "comment", comment.From.ID, comment.From.Username, comment.Text, dmMsg, commentReplySent, "failed", err.Error())
+			logAutoReply(ctx, rule, "comment", comment.From.ID, comment.From.Username, comment.Text, dmMsg, commentReplySent, "failed", err.Error(), creds.OrgID)
 			BroadcastWebhookEvent(WebhookSSEEvent{
 				Type: "comment", RuleName: rule.Name, Sender: comment.From.Username,
 				TriggerText: comment.Text, Response: dmMsg, CommentReply: commentReplySent,
@@ -265,7 +265,7 @@ func processComment(igAccountID string, comment webhookCommentValue) {
 		}
 
 		slog.Info("webhook_comment: DM sent", "sender", comment.From.ID, "rule", rule.Name)
-		logAutoReply(ctx, rule, "comment", comment.From.ID, comment.From.Username, comment.Text, dmMsg, commentReplySent, "sent", "")
+		logAutoReply(ctx, rule, "comment", comment.From.ID, comment.From.Username, comment.Text, dmMsg, commentReplySent, "sent", "", creds.OrgID)
 		BroadcastWebhookEvent(WebhookSSEEvent{
 			Type: "comment", RuleName: rule.Name, Sender: comment.From.Username,
 			TriggerText: comment.Text, Response: dmMsg, CommentReply: commentReplySent,
@@ -295,7 +295,7 @@ func processDM(igAccountID string, msg webhookMessaging) {
 		return
 	}
 
-	rules, err := findMatchingRules(ctx, text, "dm", "")
+	rules, err := findMatchingRules(ctx, text, "dm", "", creds.OrgID)
 	if err != nil {
 		slog.Error("webhook_dm: find rules", "error", err)
 		return
@@ -317,7 +317,7 @@ func processDM(igAccountID string, msg webhookMessaging) {
 		keyword := mr.Keyword
 
 		if hasCooldown(ctx, senderID, rule.ID) {
-			logAutoReply(ctx, rule, "dm", senderID, "", text, rule.ResponseMessage, "", "skipped_cooldown", "")
+			logAutoReply(ctx, rule, "dm", senderID, "", text, rule.ResponseMessage, "", "skipped_cooldown", "", creds.OrgID)
 			BroadcastWebhookEvent(WebhookSSEEvent{
 				Type: "dm", RuleName: rule.Name, Sender: senderID,
 				TriggerText: text, Response: rule.ResponseMessage,
@@ -330,7 +330,7 @@ func processDM(igAccountID string, msg webhookMessaging) {
 		err := sendInstagramDM(creds.AccountID, creds.Token, senderID, dmMsg)
 		if err != nil {
 			slog.Error("webhook_dm: send DM failed", "error", err, "sender", senderID, "rule", rule.Name)
-			logAutoReply(ctx, rule, "dm", senderID, "", text, dmMsg, "", "failed", err.Error())
+			logAutoReply(ctx, rule, "dm", senderID, "", text, dmMsg, "", "failed", err.Error(), creds.OrgID)
 			BroadcastWebhookEvent(WebhookSSEEvent{
 				Type: "dm", RuleName: rule.Name, Sender: senderID,
 				TriggerText: text, Response: dmMsg,
@@ -340,7 +340,7 @@ func processDM(igAccountID string, msg webhookMessaging) {
 		}
 
 		slog.Info("webhook_dm: DM sent", "sender", senderID, "rule", rule.Name)
-		logAutoReply(ctx, rule, "dm", senderID, "", text, dmMsg, "", "sent", "")
+		logAutoReply(ctx, rule, "dm", senderID, "", text, dmMsg, "", "sent", "", creds.OrgID)
 		BroadcastWebhookEvent(WebhookSSEEvent{
 			Type: "dm", RuleName: rule.Name, Sender: senderID,
 			TriggerText: text, Response: dmMsg,
@@ -369,6 +369,7 @@ func resolveCredsByAccountID(ctx context.Context, igAccountID string) (*instagra
 				AccountID: cfg.InstagramAccountID,
 				Token:     token,
 				Source:    "user",
+				OrgID:     cfg.OrgID,
 			}, nil
 		}
 		if err != mongo.ErrNoDocuments {
@@ -405,14 +406,19 @@ type matchedRule struct {
 	Keyword string
 }
 
-// findMatchingRules returns active rules whose keywords match the text.
-func findMatchingRules(ctx context.Context, text, triggerType, mediaID string) ([]matchedRule, error) {
+// findMatchingRules returns active rules whose keywords match the text, scoped to an org.
+func findMatchingRules(ctx context.Context, text, triggerType, mediaID string, orgID primitive.ObjectID) ([]matchedRule, error) {
 	filter := bson.M{
 		"active": true,
 		"$or": []bson.M{
 			{"trigger_type": triggerType},
 			{"trigger_type": "both"},
 		},
+	}
+
+	// Scope to org if available
+	if orgID != primitive.NilObjectID {
+		filter["org_id"] = orgID
 	}
 
 	cursor, err := database.AutoReplyRules().Find(ctx, filter)
@@ -472,12 +478,49 @@ func hasCooldown(ctx context.Context, senderIGID string, ruleID primitive.Object
 	return count > 0
 }
 
-// sendInstagramDM sends a DM via the Instagram Messaging API.
+// sendInstagramDM sends a DM via the Instagram Messaging API using recipient user ID.
+// Use this for DM-triggered auto-replies (user already has a conversation with you).
 func sendInstagramDM(accountID, token, recipientID, message string) error {
 	url := fmt.Sprintf("https://graph.facebook.com/v21.0/%s/messages", accountID)
 
 	payload := map[string]interface{}{
 		"recipient": map[string]string{"id": recipientID},
+		"message":   map[string]string{"text": message},
+	}
+
+	body, _ := json.Marshal(payload)
+	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("instagram API error %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
+}
+
+// sendPrivateReply sends a DM via Instagram Private Replies API using comment_id.
+// This is the correct way to initiate a DM from a comment — you cannot use recipient.id
+// because Instagram only allows DMs to users who have messaged you first.
+// Private Replies uses comment_id as the recipient identifier.
+func sendPrivateReply(accountID, token, commentID, message string) error {
+	url := fmt.Sprintf("https://graph.facebook.com/v21.0/%s/messages", accountID)
+
+	payload := map[string]interface{}{
+		"recipient": map[string]string{"comment_id": commentID},
 		"message":   map[string]string{"text": message},
 	}
 
@@ -542,9 +585,10 @@ func sendCommentReply(token, commentID, message string) error {
 }
 
 // logAutoReply inserts an auto-reply log entry and upserts the lead when status is "sent".
-func logAutoReply(ctx context.Context, rule models.AutoReplyRule, triggerType, senderIGID, senderUsername, triggerText, responseSent, commentReplySent, status, errMsg string) {
+func logAutoReply(ctx context.Context, rule models.AutoReplyRule, triggerType, senderIGID, senderUsername, triggerText, responseSent, commentReplySent, status, errMsg string, orgID primitive.ObjectID) {
 	logEntry := models.AutoReplyLog{
 		RuleID:           rule.ID,
+		OrgID:            orgID,
 		RuleName:         rule.Name,
 		TriggerType:      triggerType,
 		SenderIGID:       senderIGID,

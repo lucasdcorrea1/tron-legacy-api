@@ -79,6 +79,7 @@ type instagramCredentials struct {
 	AccountID string
 	Token     string
 	Source    string // "user" or "env"
+	OrgID     primitive.ObjectID
 }
 
 // getInstagramCredentials resolves credentials: DB per-user config first, then env vars fallback.
@@ -96,6 +97,7 @@ func getInstagramCredentials(ctx context.Context, userID primitive.ObjectID) (*i
 				AccountID: cfg.InstagramAccountID,
 				Token:     token,
 				Source:    "user",
+				OrgID:     cfg.OrgID,
 			}, nil
 		}
 		if err != mongo.ErrNoDocuments {
