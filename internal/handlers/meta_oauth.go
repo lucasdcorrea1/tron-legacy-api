@@ -19,7 +19,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-const metaOAuthScopes = "pages_show_list,pages_read_engagement,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights,ads_read,business_management"
+const metaOAuthScopes = "pages_show_list,pages_read_engagement,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights,ads_management,ads_read,business_management"
 
 // MetaOAuthURL returns the Facebook OAuth authorization URL.
 // GET /api/v1/auth/meta/url
