@@ -1241,6 +1241,10 @@ func GetMetaAdsInsights(w http.ResponseWriter, r *http.Request) {
 	params.Set("fields", "impressions,reach,clicks,spend,ctr,cpc,cpm,actions,campaign_name,adset_name,ad_name")
 	params.Set("level", level)
 
+	if ti := r.URL.Query().Get("time_increment"); ti != "" {
+		params.Set("time_increment", ti)
+	}
+
 	if dateStart := r.URL.Query().Get("date_start"); dateStart != "" {
 		if dateStop := r.URL.Query().Get("date_stop"); dateStop != "" {
 			params.Set("time_range", fmt.Sprintf(`{"since":"%s","until":"%s"}`, dateStart, dateStop))
@@ -1391,6 +1395,61 @@ func GetMetaAdsAccountFinance(w http.ResponseWriter, r *http.Request) {
 		"remaining":       remaining,
 		"spend_today":     spendToday,
 		"spend_this_month": spendMonth,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ACCOUNT RECOMMENDATIONS (opportunity score + recommendations)
+// ══════════════════════════════════════════════════════════════════════
+
+func GetMetaAdsRecommendations(w http.ResponseWriter, r *http.Request) {
+	_, creds, ok := requireMetaAdsCreds(w, r)
+	if !ok {
+		return
+	}
+
+	accountPath := adAccountPath(creds.AdAccountID)
+
+	// Fetch opportunity_score from ad account
+	scoreParams := url.Values{}
+	scoreParams.Set("fields", "opportunity_score")
+
+	scoreResult, err := metaGraphGet(accountPath, creds.Token, scoreParams)
+	if err != nil {
+		slog.Warn("meta_ads_opportunity_score", "error", err)
+	}
+
+	// Fetch recommendations
+	recsResult, err := metaGraphGet(accountPath+"/recommendations", creds.Token, nil)
+	if err != nil {
+		slog.Warn("meta_ads_recommendations", "error", err)
+	}
+
+	// Parse opportunity_score (float 0-100)
+	var opportunityScore float64
+	if scoreResult != nil {
+		if v, ok := scoreResult["opportunity_score"].(float64); ok {
+			opportunityScore = v
+		}
+	}
+
+	// Parse recommendations array
+	var recommendations []interface{}
+	if recsResult != nil {
+		if data, ok := recsResult["data"].([]interface{}); ok {
+			recommendations = data
+		}
+	}
+	if recommendations == nil {
+		recommendations = []interface{}{}
+	}
+
+	resp := map[string]interface{}{
+		"opportunity_score": opportunityScore,
+		"recommendations":  recommendations,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
