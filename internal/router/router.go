@@ -157,6 +157,7 @@ func New() http.Handler {
 	mux.Handle("PUT /api/v1/admin/instagram/config", orgRoute("owner", "admin")(http.HandlerFunc(handlers.SaveInstagramConfig)))
 	mux.Handle("DELETE /api/v1/admin/instagram/config", orgRoute("owner", "admin")(http.HandlerFunc(handlers.DeleteInstagramConfig)))
 	mux.Handle("GET /api/v1/admin/instagram/test", orgRoute("owner", "admin")(http.HandlerFunc(handlers.TestInstagramConnection)))
+	mux.Handle("GET /api/v1/admin/instagram/accounts", orgRoute("owner", "admin", "member")(http.HandlerFunc(handlers.ListInstagramAccounts)))
 	mux.Handle("GET /api/v1/admin/instagram/feed", orgRoute("owner", "admin", "member")(http.HandlerFunc(handlers.GetInstagramFeed)))
 	mux.Handle("GET /api/v1/admin/instagram/schedules", orgRoute("owner", "admin", "member")(http.HandlerFunc(handlers.ListInstagramSchedules)))
 	mux.Handle("POST /api/v1/admin/instagram/schedules", orgPerm("instagram:schedule")(http.HandlerFunc(handlers.CreateInstagramSchedule)))

@@ -191,14 +191,8 @@ func aggregateTopKeywords(ctx context.Context, since time.Time, orgID primitive.
 // GetEngagementReport fetches engagement data from the Instagram Graph API.
 // GET /api/v1/admin/instagram/analytics/engagement
 func GetEngagementReport(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-	defer cancel()
-
-	userID := middleware.GetUserID(r)
-	orgID := middleware.GetOrgID(r)
-	creds, err := getInstagramCredentials(ctx, userID, orgID)
-	if err != nil || creds == nil {
-		http.Error(w, `{"message":"Credenciais Instagram não configuradas"}`, http.StatusBadRequest)
+	_, creds, ok := requireInstagramCreds(w, r)
+	if !ok {
 		return
 	}
 

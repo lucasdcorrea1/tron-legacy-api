@@ -128,6 +128,62 @@ func maskAccountID(id string) string {
 	return "****"
 }
 
+// requireInstagramCreds is a helper that extracts user/org and resolves IG credentials.
+// Supports override via query param "instagram_account_id" for multi-account switching.
+func requireInstagramCreds(w http.ResponseWriter, r *http.Request) (primitive.ObjectID, *instagramCredentials, bool) {
+	userID := middleware.GetUserID(r)
+	orgID := middleware.GetOrgID(r)
+	if userID == primitive.NilObjectID {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return primitive.NilObjectID, nil, false
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	creds, err := getInstagramCredentials(ctx, userID, orgID)
+	if err != nil {
+		slog.Error("instagram_creds_error", "error", err)
+		http.Error(w, "Error getting credentials", http.StatusInternalServerError)
+		return primitive.NilObjectID, nil, false
+	}
+	if creds == nil {
+		http.Error(w, "Instagram not configured", http.StatusBadRequest)
+		return primitive.NilObjectID, nil, false
+	}
+
+	// Allow override via query param (multi-account support)
+	if override := r.URL.Query().Get("instagram_account_id"); override != "" {
+		creds.AccountID = override
+	}
+
+	return userID, creds, true
+}
+
+// ListInstagramAccounts returns all Instagram Business accounts accessible via the stored token.
+func ListInstagramAccounts(w http.ResponseWriter, r *http.Request) {
+	_, creds, ok := requireInstagramCreds(w, r)
+	if !ok {
+		return
+	}
+
+	accounts, reason, err := fetchInstagramAccounts(creds.Token)
+	if err != nil {
+		slog.Error("list_instagram_accounts_error", "error", err)
+		http.Error(w, "Error fetching Instagram accounts", http.StatusBadGateway)
+		return
+	}
+
+	if accounts == nil {
+		accounts = []igAccount{}
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"data":   accounts,
+		"reason": reason,
+	})
+}
+
 // GetInstagramConfig returns whether Instagram is configured (DB first, then env fallback)
 func GetInstagramConfig(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
@@ -333,25 +389,15 @@ func DeleteInstagramConfig(w http.ResponseWriter, r *http.Request) {
 
 // TestInstagramConnection verifies credentials by fetching account info (read-only, no publish)
 func TestInstagramConnection(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r)
-	orgID := middleware.GetOrgID(r)
-	if userID == primitive.NilObjectID {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+	userID, creds, ok := requireInstagramCreds(w, r)
+	if !ok {
 		return
 	}
+
+	orgID := middleware.GetOrgID(r)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
-	creds, err := getInstagramCredentials(ctx, userID, orgID)
-	if err != nil {
-		http.Error(w, "Error getting credentials: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if creds == nil {
-		http.Error(w, "Instagram not configured", http.StatusBadRequest)
-		return
-	}
 
 	// GET account info — read-only, safe
 	params := url.Values{}
@@ -432,23 +478,8 @@ func TestInstagramConnection(w http.ResponseWriter, r *http.Request) {
 
 // GetInstagramFeed fetches recent media from the Instagram account (read-only)
 func GetInstagramFeed(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r)
-	orgID := middleware.GetOrgID(r)
-	if userID == primitive.NilObjectID {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	creds, err := getInstagramCredentials(ctx, userID, orgID)
-	if err != nil {
-		http.Error(w, "Error getting credentials: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if creds == nil {
-		http.Error(w, "Instagram not configured", http.StatusBadRequest)
+	_, creds, ok := requireInstagramCreds(w, r)
+	if !ok {
 		return
 	}
 
