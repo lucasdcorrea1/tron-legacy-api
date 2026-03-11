@@ -59,6 +59,8 @@ type InstagramConfig struct {
 	OrgID              primitive.ObjectID `json:"org_id" bson:"org_id"`
 	InstagramAccountID string             `json:"instagram_account_id" bson:"instagram_account_id"`
 	AccessTokenEnc     string             `json:"-" bson:"access_token_enc"` // never sent to client
+	Username           string             `json:"username,omitempty" bson:"username,omitempty"`
+	PageName           string             `json:"page_name,omitempty" bson:"page_name,omitempty"`
 	AdAccountID        string             `json:"ad_account_id,omitempty" bson:"ad_account_id,omitempty"`
 	BusinessID         string             `json:"business_id,omitempty" bson:"business_id,omitempty"`
 	CreatedAt          time.Time          `json:"created_at" bson:"created_at"`

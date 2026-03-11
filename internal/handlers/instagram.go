@@ -1262,6 +1262,86 @@ func ProcessScheduledInstagramPosts() {
 	}
 }
 
+// ListAllOrgInstagramProfiles returns IG profiles across all orgs the user belongs to.
+// Auth-only (no org context needed). Only reads from DB — no Meta API calls.
+func ListAllOrgInstagramProfiles(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r)
+	if userID == primitive.NilObjectID {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Current org from JWT (may be nil if no org selected)
+	currentOrgID := middleware.GetOrgID(r)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// 1. Find all org memberships for this user
+	cursor, err := database.OrgMemberships().Find(ctx, bson.M{"user_id": userID})
+	if err != nil {
+		slog.Error("all_profiles_membership_error", "error", err)
+		http.Error(w, "Error listing memberships", http.StatusInternalServerError)
+		return
+	}
+	defer cursor.Close(ctx)
+
+	type membership struct {
+		OrgID primitive.ObjectID `bson:"org_id"`
+	}
+	var memberships []membership
+	if err := cursor.All(ctx, &memberships); err != nil {
+		http.Error(w, "Error decoding memberships", http.StatusInternalServerError)
+		return
+	}
+
+	type profileEntry struct {
+		OrgID       string `json:"org_id"`
+		OrgName     string `json:"org_name"`
+		IGAccountID string `json:"ig_account_id"`
+		Username    string `json:"username,omitempty"`
+		PageName    string `json:"page_name,omitempty"`
+		AdAccountID string `json:"ad_account_id,omitempty"`
+		IsCurrent   bool   `json:"is_current"`
+	}
+
+	var profiles []profileEntry
+
+	for _, m := range memberships {
+		// Fetch instagram config for this org
+		var cfg models.InstagramConfig
+		err := database.InstagramConfigs().FindOne(ctx, bson.M{"org_id": m.OrgID}).Decode(&cfg)
+		if err != nil {
+			continue // no IG config for this org
+		}
+
+		// Fetch org name
+		var org models.Organization
+		err = database.Organizations().FindOne(ctx, bson.M{"_id": m.OrgID}).Decode(&org)
+		if err != nil {
+			continue
+		}
+
+		profiles = append(profiles, profileEntry{
+			OrgID:       m.OrgID.Hex(),
+			OrgName:     org.Name,
+			IGAccountID: cfg.InstagramAccountID,
+			Username:    cfg.Username,
+			PageName:    cfg.PageName,
+			AdAccountID: cfg.AdAccountID,
+			IsCurrent:   m.OrgID == currentOrgID,
+		})
+	}
+
+	if profiles == nil {
+		profiles = []profileEntry{}
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"profiles": profiles,
+	})
+}
+
 // buildScheduleResponse creates a response with resolved image URLs
 func buildScheduleResponse(s models.InstagramSchedule) models.InstagramScheduleResponse {
 	imageURLs := make([]string, len(s.ImageIDs))

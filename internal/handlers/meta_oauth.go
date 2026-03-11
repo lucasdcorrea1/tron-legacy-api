@@ -123,10 +123,12 @@ func MetaOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Pick first account to auto-configure (if multiple, frontend lets user choose)
-	var igAccountID, businessID string
+	var igAccountID, businessID, igUsername, igPageName string
 	if len(igAccounts) > 0 {
 		igAccountID = igAccounts[0].IGAccountID
 		businessID = igAccounts[0].PageID
+		igUsername = igAccounts[0].Username
+		igPageName = igAccounts[0].PageName
 	}
 
 	// Step 4: Fetch ad accounts (all of them)
@@ -164,6 +166,12 @@ func MetaOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	if businessID != "" {
 		setFields["business_id"] = businessID
+	}
+	if igUsername != "" {
+		setFields["username"] = igUsername
+	}
+	if igPageName != "" {
+		setFields["page_name"] = igPageName
 	}
 	if adAccountID != "" {
 		setFields["ad_account_id"] = adAccountID
@@ -262,9 +270,11 @@ func exchangeCodeForToken(appID, appSecret, code, redirectURI string) (string, e
 
 // igAccount represents a found Instagram Business account linked to a Facebook Page.
 type igAccount struct {
-	IGAccountID string `json:"ig_account_id"`
-	PageID      string `json:"page_id"`
-	PageName    string `json:"page_name"`
+	IGAccountID       string `json:"ig_account_id"`
+	PageID            string `json:"page_id"`
+	PageName          string `json:"page_name"`
+	Username          string `json:"username,omitempty"`
+	ProfilePictureURL string `json:"profile_picture_url,omitempty"`
 }
 
 // fetchInstagramAccounts fetches the user's pages and returns all that have an instagram_business_account.
@@ -310,16 +320,37 @@ func fetchInstagramAccounts(token string) ([]igAccount, string, error) {
 	var accounts []igAccount
 	for _, page := range result.Data {
 		if page.InstagramBusinessAccount != nil && page.InstagramBusinessAccount.ID != "" {
+			igID := page.InstagramBusinessAccount.ID
 			slog.Info("meta_oauth_found_ig_account",
 				"page_id", page.ID,
 				"page_name", page.Name,
-				"ig_account_id", page.InstagramBusinessAccount.ID,
+				"ig_account_id", igID,
 			)
-			accounts = append(accounts, igAccount{
-				IGAccountID: page.InstagramBusinessAccount.ID,
+			acc := igAccount{
+				IGAccountID: igID,
 				PageID:      page.ID,
 				PageName:    page.Name,
-			})
+			}
+
+			// Fetch username and profile picture from IG account
+			igURL := fmt.Sprintf(
+				"https://graph.facebook.com/v21.0/%s?fields=username,profile_picture_url&access_token=%s",
+				url.QueryEscape(igID), url.QueryEscape(token),
+			)
+			igResp, igErr := http.Get(igURL)
+			if igErr == nil {
+				var igInfo struct {
+					Username          string `json:"username"`
+					ProfilePictureURL string `json:"profile_picture_url"`
+				}
+				if json.NewDecoder(igResp.Body).Decode(&igInfo) == nil {
+					acc.Username = igInfo.Username
+					acc.ProfilePictureURL = igInfo.ProfilePictureURL
+				}
+				igResp.Body.Close()
+			}
+
+			accounts = append(accounts, acc)
 		}
 	}
 

@@ -152,6 +152,9 @@ func New() http.Handler {
 	// CTA analytics (superuser only — internal Whodo tool)
 	mux.Handle("GET /api/v1/admin/cta-analytics", middleware.Auth(suOnly(http.HandlerFunc(handlers.GetCTAAnalytics))))
 
+	// Instagram cross-org profiles (auth only — no org context needed)
+	mux.Handle("GET /api/v1/admin/instagram/all-profiles", middleware.Auth(http.HandlerFunc(handlers.ListAllOrgInstagramProfiles)))
+
 	// Instagram scheduling routes (org-scoped)
 	mux.Handle("GET /api/v1/admin/instagram/config", orgRoute("owner", "admin", "member")(http.HandlerFunc(handlers.GetInstagramConfig)))
 	mux.Handle("PUT /api/v1/admin/instagram/config", orgRoute("owner", "admin")(http.HandlerFunc(handlers.SaveInstagramConfig)))
