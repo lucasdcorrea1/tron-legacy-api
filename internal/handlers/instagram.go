@@ -270,6 +270,7 @@ func SaveInstagramConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update credentials if provided
+	var plainToken string
 	if req.InstagramAccountID != "" {
 		setFields["instagram_account_id"] = req.InstagramAccountID
 	}
@@ -282,6 +283,7 @@ func SaveInstagramConfig(w http.ResponseWriter, r *http.Request) {
 		} else {
 			slog.Info("successfully exchanged for long-lived token")
 		}
+		plainToken = longToken
 		encToken, err := crypto.Encrypt(longToken)
 		if err != nil {
 			slog.Error("encrypt_token_error", "error", err)
@@ -313,6 +315,31 @@ func SaveInstagramConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.BusinessID != "" {
 		setFields["business_id"] = req.BusinessID
+	}
+
+	// Fetch IG username and page_name from Meta API if we have a token
+	if plainToken != "" {
+		effectiveIGID := req.InstagramAccountID
+		if effectiveIGID == "" && dbConfigExists {
+			effectiveIGID = existing.InstagramAccountID
+		}
+		if effectiveIGID != "" {
+			if accounts, _, fetchErr := fetchInstagramAccounts(plainToken); fetchErr == nil {
+				for _, acc := range accounts {
+					if acc.IGAccountID == effectiveIGID {
+						if acc.Username != "" {
+							setFields["username"] = acc.Username
+						}
+						if acc.PageName != "" {
+							setFields["page_name"] = acc.PageName
+						}
+						break
+					}
+				}
+			} else {
+				slog.Warn("save_config_fetch_ig_profile_failed", "error", fetchErr)
+			}
+		}
 	}
 
 	update := bson.M{
