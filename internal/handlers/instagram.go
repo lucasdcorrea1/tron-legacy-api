@@ -219,6 +219,36 @@ func GetInstagramConfig(w http.ResponseWriter, r *http.Request) {
 			if cfg.BusinessID != "" {
 				resp.BusinessID = maskAccountID(cfg.BusinessID)
 			}
+
+			// Lazy-fill username/page_name if missing
+			if cfg.Username == "" && creds.Token != "" {
+				go func() {
+					bgCtx, bgCancel := context.WithTimeout(context.Background(), 15*time.Second)
+					defer bgCancel()
+
+					accounts, _, fetchErr := fetchInstagramAccounts(creds.Token)
+					if fetchErr != nil {
+						slog.Warn("lazy_fill_username_failed", "error", fetchErr)
+						return
+					}
+					for _, acc := range accounts {
+						if acc.IGAccountID == creds.AccountID {
+							upd := bson.M{"updated_at": time.Now()}
+							if acc.Username != "" {
+								upd["username"] = acc.Username
+							}
+							if acc.PageName != "" {
+								upd["page_name"] = acc.PageName
+							}
+							if len(upd) > 1 { // more than just updated_at
+								database.InstagramConfigs().UpdateOne(bgCtx, bson.M{"org_id": orgID}, bson.M{"$set": upd})
+								slog.Info("lazy_filled_ig_username", "org_id", orgID.Hex(), "username", acc.Username)
+							}
+							break
+						}
+					}
+				}()
+			}
 		}
 	}
 
