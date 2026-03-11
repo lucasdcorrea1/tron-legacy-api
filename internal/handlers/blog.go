@@ -312,8 +312,28 @@ func UpdatePost(w http.ResponseWriter, r *http.Request) {
 	}
 	err = database.Posts().FindOne(ctx, filter).Decode(&post)
 	if err != nil {
-		http.Error(w, "Post not found", http.StatusNotFound)
-		return
+		// Fallback: try without org_id for author's own posts (handles posts with mismatched org_id)
+		var fallbackFilter bson.M
+		if postID != primitive.NilObjectID {
+			fallbackFilter = bson.M{"_id": postID, "author_id": userID}
+		} else {
+			fallbackFilter = bson.M{"slug": postIDStr, "author_id": userID}
+		}
+		err = database.Posts().FindOne(ctx, fallbackFilter).Decode(&post)
+		if err != nil {
+			http.Error(w, "Post not found", http.StatusNotFound)
+			return
+		}
+		// Migrate post to current org
+		if orgID != primitive.NilObjectID && post.OrgID != orgID {
+			slog.Info("post_org_migration",
+				"post_id", post.ID.Hex(),
+				"old_org", post.OrgID.Hex(),
+				"new_org", orgID.Hex(),
+			)
+			database.Posts().UpdateOne(ctx, bson.M{"_id": post.ID}, bson.M{"$set": bson.M{"org_id": orgID}})
+			post.OrgID = orgID
+		}
 	}
 
 	// Only superuser can edit others' posts
@@ -446,8 +466,18 @@ func DeletePost(w http.ResponseWriter, r *http.Request) {
 	}
 	err = database.Posts().FindOne(ctx, filter).Decode(&post)
 	if err != nil {
-		http.Error(w, "Post not found", http.StatusNotFound)
-		return
+		// Fallback: try without org_id for author's own posts
+		var fallbackFilter bson.M
+		if postID != primitive.NilObjectID {
+			fallbackFilter = bson.M{"_id": postID, "author_id": userID}
+		} else {
+			fallbackFilter = bson.M{"slug": postIDStr, "author_id": userID}
+		}
+		err = database.Posts().FindOne(ctx, fallbackFilter).Decode(&post)
+		if err != nil {
+			http.Error(w, "Post not found", http.StatusNotFound)
+			return
+		}
 	}
 
 	// Only superuser can delete others' posts
