@@ -148,6 +148,14 @@ func AIConfigs() *mongo.Collection {
 	return DB.Collection("ai_configs")
 }
 
+func FacebookSchedules() *mongo.Collection {
+	return DB.Collection("facebook_schedules")
+}
+
+func FacebookConfigs() *mongo.Collection {
+	return DB.Collection("facebook_configs")
+}
+
 // ── Multi-tenant collections ─────────────────────────────────────────
 
 func Organizations() *mongo.Collection {
@@ -455,6 +463,31 @@ func EnsureIndexes() error {
 
 	// ai_configs: unique index on org_id (one config per org)
 	_, err = AIConfigs().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "org_id", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	})
+	if err != nil {
+		return err
+	}
+
+	// facebook_schedules: compound index on {status, scheduled_at} for scheduler queries
+	_, err = FacebookSchedules().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "status", Value: 1}, {Key: "scheduled_at", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// facebook_schedules: index on {org_id, created_at} for org listing
+	_, err = FacebookSchedules().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "org_id", Value: 1}, {Key: "created_at", Value: -1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// facebook_configs: unique index on org_id (one config per org)
+	_, err = FacebookConfigs().Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys:    bson.D{{Key: "org_id", Value: 1}},
 		Options: options.Index().SetUnique(true),
 	})

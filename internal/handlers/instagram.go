@@ -641,16 +641,17 @@ func CreateInstagramSchedule(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now()
 	schedule := models.InstagramSchedule{
-		ID:          primitive.NewObjectID(),
-		UserID:      userID,
-		OrgID:       orgID,
-		Caption:     req.Caption,
-		MediaType:   req.MediaType,
-		ImageIDs:    req.ImageIDs,
-		ScheduledAt: scheduledAt,
-		Status:      "scheduled",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		ID:             primitive.NewObjectID(),
+		UserID:         userID,
+		OrgID:          orgID,
+		Caption:        req.Caption,
+		MediaType:      req.MediaType,
+		ImageIDs:       req.ImageIDs,
+		ScheduledAt:    scheduledAt,
+		Status:         "scheduled",
+		PostToFacebook: req.PostToFacebook,
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 
 	_, err = database.InstagramSchedules().InsertOne(ctx, schedule)
@@ -1302,12 +1303,35 @@ func ProcessScheduledInstagramPosts() {
 			continue
 		}
 
+		updateFields := bson.M{
+			"status":      "published",
+			"ig_media_id": mediaID,
+			"updated_at":  time.Now(),
+		}
+
+		// Crosspost to Facebook if enabled
+		if schedule.PostToFacebook {
+			fbPostID, fbErr := crosspostToFacebook(schedule)
+			if fbErr != nil {
+				slog.Warn("facebook_crosspost_failed",
+					"schedule_id", schedule.ID.Hex(),
+					"error", fbErr,
+				)
+				updateFields["fb_status"] = "failed"
+				updateFields["fb_error"] = fbErr.Error()
+			} else {
+				updateFields["fb_status"] = "published"
+				updateFields["fb_post_id"] = fbPostID
+				middleware.IncFacebookPublished()
+				slog.Info("facebook_crosspost_success",
+					"schedule_id", schedule.ID.Hex(),
+					"fb_post_id", fbPostID,
+				)
+			}
+		}
+
 		database.InstagramSchedules().UpdateOne(ctx, bson.M{"_id": schedule.ID}, bson.M{
-			"$set": bson.M{
-				"status":      "published",
-				"ig_media_id": mediaID,
-				"updated_at":  time.Now(),
-			},
+			"$set": updateFields,
 		})
 
 		middleware.IncInstagramPublished()
@@ -1317,6 +1341,34 @@ func ProcessScheduledInstagramPosts() {
 			"ig_media_id", mediaID,
 		)
 	}
+}
+
+// crosspostToFacebook publishes the same content to Facebook Page
+func crosspostToFacebook(schedule models.InstagramSchedule) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	creds, err := getFacebookCredentials(ctx, schedule.UserID, schedule.OrgID)
+	if err != nil {
+		return "", fmt.Errorf("get facebook credentials: %w", err)
+	}
+	if creds == nil {
+		return "", fmt.Errorf("facebook not configured for this organization")
+	}
+
+	// Determine post type based on number of images
+	if len(schedule.ImageIDs) == 1 {
+		// Single image post
+		imageURL := getPublicImageURL(schedule.ImageIDs[0])
+		return publishFacebookPhotoPost(creds.PageID, creds.Token, schedule.Caption, imageURL)
+	}
+
+	// Multiple images - carousel/multi-photo post
+	var imageURLs []string
+	for _, imgID := range schedule.ImageIDs {
+		imageURLs = append(imageURLs, getPublicImageURL(imgID))
+	}
+	return publishFacebookMultiPhotoPost(creds.PageID, creds.Token, schedule.Caption, imageURLs)
 }
 
 // ListAllOrgInstagramProfiles returns IG profiles across all orgs the user belongs to.

@@ -193,6 +193,47 @@ func MetaOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Step 6: Also save Facebook Page config (using page access token for direct posting)
+	fbPages, fbErr := fetchFacebookPagesWithTokens(longToken)
+	var fbPageID, fbPageName string
+	if fbErr == nil && len(fbPages) > 0 {
+		// Use first page by default (same as IG behavior)
+		fbPageID = fbPages[0].PageID
+		fbPageName = fbPages[0].PageName
+		pageToken := fbPages[0].AccessToken
+
+		if pageToken != "" {
+			pageTokenEnc, encErr := crypto.Encrypt(pageToken)
+			if encErr == nil {
+				fbFilter := bson.M{"org_id": orgID}
+				fbSetFields := bson.M{
+					"page_id":               fbPageID,
+					"page_access_token_enc": pageTokenEnc,
+					"page_name":             fbPageName,
+					"updated_at":            now,
+				}
+				fbUpdate := bson.M{
+					"$set": fbSetFields,
+					"$setOnInsert": bson.M{
+						"user_id":    userID,
+						"org_id":     orgID,
+						"created_at": now,
+					},
+				}
+				_, fbSaveErr := database.FacebookConfigs().UpdateOne(ctx, fbFilter, fbUpdate, opts)
+				if fbSaveErr != nil {
+					slog.Warn("meta_oauth_fb_save_failed", "error", fbSaveErr)
+				} else {
+					slog.Info("facebook_config_auto_saved",
+						"org_id", orgID.Hex(),
+						"page_id", fbPageID,
+						"page_name", fbPageName,
+					)
+				}
+			}
+		}
+	}
+
 	needsManualConfig := igAccountID == ""
 	needsSelection := len(igAccounts) > 1
 	needsAdAccountSelection := len(adAccounts) > 1
@@ -225,6 +266,23 @@ func MetaOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	if len(adAccounts) > 0 {
 		respData["ad_accounts"] = adAccounts
 		respData["ad_accounts_count"] = len(adAccounts)
+	}
+	// Include Facebook pages info
+	if fbErr == nil && len(fbPages) > 0 {
+		// Return pages without access_token for security
+		safeFbPages := make([]map[string]string, len(fbPages))
+		for i, p := range fbPages {
+			safeFbPages[i] = map[string]string{
+				"page_id":   p.PageID,
+				"page_name": p.PageName,
+				"category":  p.Category,
+			}
+		}
+		respData["fb_pages"] = safeFbPages
+		respData["fb_pages_count"] = len(fbPages)
+		respData["fb_page_id"] = maskID(fbPageID)
+		respData["fb_page_name"] = fbPageName
+		respData["needs_fb_page_selection"] = len(fbPages) > 1
 	}
 	json.NewEncoder(w).Encode(respData)
 }
@@ -419,6 +477,60 @@ func fetchAdAccounts(token string) ([]adAccount, error) {
 	}
 
 	return accounts, nil
+}
+
+// fbPage represents a Facebook Page with its access token for posting.
+type fbPage struct {
+	PageID      string `json:"page_id"`
+	PageName    string `json:"page_name"`
+	AccessToken string `json:"access_token"`
+	Category    string `json:"category,omitempty"`
+}
+
+// fetchFacebookPagesWithTokens fetches all Facebook Pages the user has access to with their page access tokens.
+func fetchFacebookPagesWithTokens(userToken string) ([]fbPage, error) {
+	apiURL := fmt.Sprintf(
+		"https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,category&access_token=%s",
+		url.QueryEscape(userToken),
+	)
+
+	resp, err := http.Get(apiURL)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Data []struct {
+			ID          string `json:"id"`
+			Name        string `json:"name"`
+			AccessToken string `json:"access_token"`
+			Category    string `json:"category"`
+		} `json:"data"`
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode failed: %w", err)
+	}
+
+	if result.Error != nil {
+		return nil, fmt.Errorf("meta error: %s", result.Error.Message)
+	}
+
+	var pages []fbPage
+	for _, p := range result.Data {
+		pages = append(pages, fbPage{
+			PageID:      p.ID,
+			PageName:    p.Name,
+			AccessToken: p.AccessToken,
+			Category:    p.Category,
+		})
+	}
+
+	return pages, nil
 }
 
 // maskID returns a masked version of an ID string for display.

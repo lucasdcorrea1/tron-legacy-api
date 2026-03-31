@@ -40,6 +40,9 @@ type Metrics struct {
 
 	// Instagram metrics
 	instagramPublished int64
+
+	// Facebook metrics
+	facebookPublished int64
 }
 
 var metrics = &Metrics{
@@ -154,6 +157,12 @@ func IncCTAClick() {
 func IncInstagramPublished() {
 	metrics.mu.Lock()
 	metrics.instagramPublished++
+	metrics.mu.Unlock()
+}
+
+func IncFacebookPublished() {
+	metrics.mu.Lock()
+	metrics.facebookPublished++
 	metrics.mu.Unlock()
 }
 
@@ -348,6 +357,11 @@ func PrometheusHandler() http.Handler {
 		w.Write([]byte("\n# HELP instagram_published_total Total number of Instagram posts published\n"))
 		w.Write([]byte("# TYPE instagram_published_total counter\n"))
 		w.Write([]byte("instagram_published_total " + strconv.FormatInt(metrics.instagramPublished, 10) + "\n"))
+
+		// Facebook metrics
+		w.Write([]byte("\n# HELP facebook_published_total Total number of Facebook posts published\n"))
+		w.Write([]byte("# TYPE facebook_published_total counter\n"))
+		w.Write([]byte("facebook_published_total " + strconv.FormatInt(metrics.facebookPublished, 10) + "\n"))
 	})
 }
 

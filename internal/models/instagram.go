@@ -18,24 +18,31 @@ type InstagramSchedule struct {
 	Status       string             `json:"status" bson:"status"` // "scheduled", "publishing", "published", "failed"
 	IGMediaID    string             `json:"ig_media_id,omitempty" bson:"ig_media_id,omitempty"`
 	ErrorMessage string             `json:"error_message,omitempty" bson:"error_message,omitempty"`
-	CreatedAt    time.Time          `json:"created_at" bson:"created_at"`
-	UpdatedAt    time.Time          `json:"updated_at" bson:"updated_at"`
+	// Facebook crosspost fields
+	PostToFacebook bool   `json:"post_to_facebook" bson:"post_to_facebook"`
+	FBPostID       string `json:"fb_post_id,omitempty" bson:"fb_post_id,omitempty"`
+	FBStatus       string `json:"fb_status,omitempty" bson:"fb_status,omitempty"` // "pending", "published", "failed"
+	FBError        string `json:"fb_error,omitempty" bson:"fb_error,omitempty"`
+	CreatedAt      time.Time `json:"created_at" bson:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at" bson:"updated_at"`
 }
 
 // CreateInstagramScheduleRequest is the request body for creating a scheduled post
 type CreateInstagramScheduleRequest struct {
-	Caption     string   `json:"caption"`
-	MediaType   string   `json:"media_type"`
-	ImageIDs    []string `json:"image_ids"`
-	ScheduledAt string   `json:"scheduled_at"` // ISO 8601
+	Caption        string   `json:"caption"`
+	MediaType      string   `json:"media_type"`
+	ImageIDs       []string `json:"image_ids"`
+	ScheduledAt    string   `json:"scheduled_at"` // ISO 8601
+	PostToFacebook bool     `json:"post_to_facebook"`
 }
 
 // UpdateInstagramScheduleRequest is the request body for updating a scheduled post
 type UpdateInstagramScheduleRequest struct {
-	Caption     *string  `json:"caption,omitempty"`
-	MediaType   *string  `json:"media_type,omitempty"`
-	ImageIDs    []string `json:"image_ids,omitempty"`
-	ScheduledAt *string  `json:"scheduled_at,omitempty"` // ISO 8601
+	Caption        *string  `json:"caption,omitempty"`
+	MediaType      *string  `json:"media_type,omitempty"`
+	ImageIDs       []string `json:"image_ids,omitempty"`
+	ScheduledAt    *string  `json:"scheduled_at,omitempty"` // ISO 8601
+	PostToFacebook *bool    `json:"post_to_facebook,omitempty"`
 }
 
 // InstagramScheduleResponse is the response for a single schedule with image URLs

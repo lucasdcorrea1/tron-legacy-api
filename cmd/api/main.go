@@ -61,6 +61,9 @@ func main() {
 	// Start Instagram scheduler
 	go instagramScheduler()
 
+	// Start Facebook scheduler
+	go facebookScheduler()
+
 	// Start Meta Ads budget alert checker
 	go metaAdsBudgetChecker()
 
@@ -92,6 +95,20 @@ func instagramScheduler() {
 
 	for range ticker.C {
 		handlers.ProcessScheduledInstagramPosts()
+	}
+}
+
+// facebookScheduler runs every minute and processes due scheduled Facebook posts.
+func facebookScheduler() {
+	// Wait for server to start
+	time.Sleep(18 * time.Second)
+	log.Println("Facebook scheduler started (1 min interval)")
+
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		handlers.ProcessScheduledFacebookPosts()
 	}
 }
 
