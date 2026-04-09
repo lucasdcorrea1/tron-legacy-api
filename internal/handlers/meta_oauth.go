@@ -21,8 +21,19 @@ import (
 
 const metaOAuthScopes = "pages_show_list,pages_read_engagement,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights,ads_management,ads_read,business_management"
 
-// MetaOAuthURL returns the Facebook OAuth authorization URL.
-// GET /api/v1/auth/meta/url
+// MetaOAuthURL godoc
+// @Summary Obter URL de autenticação Meta OAuth
+// @Description Retorna a URL de autorização do Facebook OAuth para conectar conta Meta
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param org_id query string true "ID da organização"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "org_id is required"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "META_APP_ID not configured"
+// @Router /auth/meta/url [get]
 func MetaOAuthURL(w http.ResponseWriter, r *http.Request) {
 	cfg := config.Get()
 	if cfg.MetaAppID == "" {
@@ -58,8 +69,19 @@ func MetaOAuthURL(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"url": oauthURL})
 }
 
-// MetaOAuthCallback exchanges the Facebook OAuth code for tokens and fetches account info.
-// POST /api/v1/auth/meta/callback
+// MetaOAuthCallback godoc
+// @Summary Callback de autenticação Meta OAuth
+// @Description Troca o código de autorização do Facebook por tokens e busca informações das contas
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body object true "Código OAuth e ID da organização" example({"code":"abc123","org_id":"60d5ec49f1b2c72d88c1e4a1"})
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {string} string "Invalid request body"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 502 {string} string "Falha ao trocar codigo por token"
+// @Router /auth/meta/callback [post]
 func MetaOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	cfg := config.Get()
 	if cfg.MetaAppID == "" || cfg.MetaAppSecret == "" {

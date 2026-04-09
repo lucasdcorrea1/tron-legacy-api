@@ -17,6 +17,18 @@ import (
 )
 
 // CreateAutoReplyRule creates a new auto-reply rule.
+// @Summary Criar regra de auto-resposta
+// @Description Cria uma nova regra de auto-resposta para Instagram
+// @Tags instagram-autoreply
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.CreateAutoReplyRuleRequest true "Dados da regra"
+// @Success 201 {object} models.AutoReplyRule
+// @Failure 400 {string} string "Invalid request"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Erro ao criar regra"
+// @Router /admin/instagram/autoreply/rules [post]
 func CreateAutoReplyRule(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	orgID := middleware.GetOrgID(r)
@@ -78,6 +90,15 @@ func CreateAutoReplyRule(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListAutoReplyRules lists all rules for the current org.
+// @Summary Listar regras de auto-resposta
+// @Description Lista todas as regras de auto-resposta da organização
+// @Tags instagram-autoreply
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} models.AutoReplyRuleListResponse
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Erro ao listar regras"
+// @Router /admin/instagram/autoreply/rules [get]
 func ListAutoReplyRules(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 
@@ -121,6 +142,20 @@ func ListAutoReplyRules(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateAutoReplyRule updates an existing rule.
+// @Summary Atualizar regra de auto-resposta
+// @Description Atualiza uma regra de auto-resposta existente
+// @Tags instagram-autoreply
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID da regra"
+// @Param body body models.UpdateAutoReplyRuleRequest true "Dados para atualizar"
+// @Success 200 {object} models.AutoReplyRule
+// @Failure 400 {string} string "Invalid request"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Regra não encontrada"
+// @Failure 500 {string} string "Erro ao atualizar regra"
+// @Router /admin/instagram/autoreply/rules/{id} [put]
 func UpdateAutoReplyRule(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 	ruleID, err := primitive.ObjectIDFromHex(r.PathValue("id"))
@@ -184,6 +219,18 @@ func UpdateAutoReplyRule(w http.ResponseWriter, r *http.Request) {
 }
 
 // ToggleAutoReplyRule toggles the active state of a rule.
+// @Summary Ativar/desativar regra de auto-resposta
+// @Description Alterna o estado ativo/inativo de uma regra
+// @Tags instagram-autoreply
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID da regra"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {string} string "ID inválido"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Regra não encontrada"
+// @Failure 500 {string} string "Erro ao alterar regra"
+// @Router /admin/instagram/autoreply/rules/{id} [patch]
 func ToggleAutoReplyRule(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 	ruleID, err := primitive.ObjectIDFromHex(r.PathValue("id"))
@@ -223,6 +270,18 @@ func ToggleAutoReplyRule(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteAutoReplyRule deletes a rule.
+// @Summary Remover regra de auto-resposta
+// @Description Remove uma regra de auto-resposta
+// @Tags instagram-autoreply
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID da regra"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "ID inválido"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Regra não encontrada"
+// @Failure 500 {string} string "Erro ao deletar regra"
+// @Router /admin/instagram/autoreply/rules/{id} [delete]
 func DeleteAutoReplyRule(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 	ruleID, err := primitive.ObjectIDFromHex(r.PathValue("id"))
@@ -251,6 +310,20 @@ func DeleteAutoReplyRule(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListAutoReplyLogs lists auto-reply logs with pagination and optional filters.
+// @Summary Listar logs de auto-resposta
+// @Description Lista logs de auto-resposta com paginação e filtros opcionais
+// @Tags instagram-autoreply
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "Página (padrão 1)"
+// @Param limit query int false "Itens por página (padrão 20, máx 100)"
+// @Param status query string false "Filtrar por status"
+// @Param rule_id query string false "Filtrar por ID da regra"
+// @Param trigger_type query string false "Filtrar por tipo de trigger"
+// @Success 200 {object} models.AutoReplyLogListResponse
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Erro ao listar logs"
+// @Router /admin/instagram/autoreply/logs [get]
 func ListAutoReplyLogs(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 

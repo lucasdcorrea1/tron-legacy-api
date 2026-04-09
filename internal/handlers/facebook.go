@@ -89,6 +89,15 @@ func requireFacebookCreds(w http.ResponseWriter, r *http.Request) (primitive.Obj
 }
 
 // GetFacebookConfig returns whether Facebook is configured
+// @Summary Obter configuração do Facebook
+// @Description Retorna se o Facebook está configurado para a organização atual
+// @Tags facebook
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} models.FacebookConfigResponse
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Error checking config"
+// @Router /admin/facebook/config [get]
 func GetFacebookConfig(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	orgID := middleware.GetOrgID(r)
@@ -117,6 +126,19 @@ func GetFacebookConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // SaveFacebookConfig saves or updates per-org Facebook Page credentials
+// @Summary Salvar configuração do Facebook
+// @Description Salva ou atualiza credenciais da página do Facebook para a organização
+// @Tags facebook
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.SaveFacebookConfigRequest true "Dados da configuração"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {string} string "Dados inválidos"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Error saving config"
+// @Failure 503 {string} string "Encryption not configured"
+// @Router /admin/facebook/config [put]
 func SaveFacebookConfig(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	orgID := middleware.GetOrgID(r)
@@ -209,6 +231,17 @@ func SaveFacebookConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteFacebookConfig removes per-org Facebook credentials
+// @Summary Remover configuração do Facebook
+// @Description Remove as credenciais do Facebook da organização
+// @Tags facebook
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Organization context required"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "No config found"
+// @Failure 500 {string} string "Error deleting config"
+// @Router /admin/facebook/config [delete]
 func DeleteFacebookConfig(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	orgID := middleware.GetOrgID(r)
@@ -245,6 +278,16 @@ func DeleteFacebookConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // TestFacebookConnection verifies credentials by fetching page info
+// @Summary Testar conexão com Facebook
+// @Description Verifica as credenciais buscando informações da página
+// @Tags facebook
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {string} string "Facebook not configured"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 502 {string} string "Failed to reach Facebook API"
+// @Router /admin/facebook/test [get]
 func TestFacebookConnection(w http.ResponseWriter, r *http.Request) {
 	userID, creds, ok := requireFacebookCreds(w, r)
 	if !ok {
@@ -297,6 +340,17 @@ func TestFacebookConnection(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListFacebookPages returns all Facebook Pages accessible via the stored token (from InstagramConfig)
+// @Summary Listar páginas do Facebook
+// @Description Retorna todas as páginas do Facebook acessíveis via token armazenado
+// @Tags facebook
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {string} string "Instagram not configured"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Error decrypting token"
+// @Failure 502 {string} string "Error fetching Facebook pages"
+// @Router /admin/facebook/pages [get]
 func ListFacebookPages(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	orgID := middleware.GetOrgID(r)
@@ -385,6 +439,17 @@ func fetchFacebookPages(userToken string) ([]models.FacebookPage, error) {
 }
 
 // GetFacebookFeed fetches recent posts from the Facebook Page
+// @Summary Obter feed do Facebook
+// @Description Busca posts recentes da página do Facebook
+// @Tags facebook
+// @Produce json
+// @Security BearerAuth
+// @Param limit query string false "Número de posts (padrão 12)"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {string} string "Facebook not configured"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 502 {string} string "Failed to reach Facebook API"
+// @Router /admin/facebook/feed [get]
 func GetFacebookFeed(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireFacebookCreds(w, r)
 	if !ok {
@@ -428,6 +493,18 @@ func GetFacebookFeed(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateFacebookSchedule creates a new scheduled Facebook Page post
+// @Summary Criar agendamento de post no Facebook
+// @Description Cria um novo post agendado para a página do Facebook
+// @Tags facebook
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.CreateFacebookScheduleRequest true "Dados do agendamento"
+// @Success 201 {object} models.FacebookScheduleResponse
+// @Failure 400 {string} string "Dados inválidos"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Error creating schedule"
+// @Router /admin/facebook/schedules [post]
 func CreateFacebookSchedule(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	orgID := middleware.GetOrgID(r)
@@ -531,6 +608,18 @@ func CreateFacebookSchedule(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListFacebookSchedules lists scheduled posts with pagination and filtering
+// @Summary Listar agendamentos do Facebook
+// @Description Lista posts agendados com paginação e filtro por status
+// @Tags facebook
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "Página (padrão 1)"
+// @Param limit query int false "Itens por página (padrão 10, máx 50)"
+// @Param status query string false "Filtrar por status"
+// @Success 200 {object} models.FacebookScheduleListResponse
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Error fetching schedules"
+// @Router /admin/facebook/schedules [get]
 func ListFacebookSchedules(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 
@@ -590,6 +679,17 @@ func ListFacebookSchedules(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetFacebookSchedule returns a single schedule by ID
+// @Summary Obter agendamento do Facebook
+// @Description Retorna um agendamento específico pelo ID
+// @Tags facebook
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Schedule ID"
+// @Success 200 {object} models.FacebookScheduleResponse
+// @Failure 400 {string} string "Invalid schedule ID"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Schedule not found"
+// @Router /admin/facebook/schedules/{id} [get]
 func GetFacebookSchedule(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 
@@ -614,6 +714,20 @@ func GetFacebookSchedule(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateFacebookSchedule updates a scheduled post (only if status is "scheduled" or "failed")
+// @Summary Atualizar agendamento do Facebook
+// @Description Atualiza um post agendado (somente se status for "scheduled" ou "failed")
+// @Tags facebook
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Schedule ID"
+// @Param body body models.UpdateFacebookScheduleRequest true "Dados para atualização"
+// @Success 200 {object} models.FacebookScheduleResponse
+// @Failure 400 {string} string "Dados inválidos"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Schedule not found"
+// @Failure 500 {string} string "Error updating schedule"
+// @Router /admin/facebook/schedules/{id} [put]
 func UpdateFacebookSchedule(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 
@@ -712,6 +826,18 @@ func UpdateFacebookSchedule(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteFacebookSchedule deletes a scheduled post
+// @Summary Deletar agendamento do Facebook
+// @Description Remove um post agendado (não pode deletar posts em publicação)
+// @Tags facebook
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Schedule ID"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Cannot delete a post that is currently publishing"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Schedule not found"
+// @Failure 500 {string} string "Error deleting schedule"
+// @Router /admin/facebook/schedules/{id} [delete]
 func DeleteFacebookSchedule(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 
@@ -1050,6 +1176,19 @@ func ProcessScheduledFacebookPosts() {
 }
 
 // UploadFacebookImage uploads an image for Facebook posting (reuses Instagram upload logic)
+// @Summary Upload de imagem para Facebook
+// @Description Faz upload de uma imagem para uso em posts do Facebook (máx 10MB)
+// @Tags facebook
+// @Accept multipart/form-data
+// @Produce json
+// @Security BearerAuth
+// @Param image formData file true "Arquivo de imagem"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "No image provided"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 413 {string} string "Image too large"
+// @Failure 500 {string} string "Error saving image"
+// @Router /admin/facebook/upload [post]
 func UploadFacebookImage(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	orgID := middleware.GetOrgID(r)

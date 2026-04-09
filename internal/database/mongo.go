@@ -156,6 +156,12 @@ func FacebookConfigs() *mongo.Collection {
 	return DB.Collection("facebook_configs")
 }
 
+// ── Contabil collections ─────────────────────────────────────────────
+
+func ContabilUserMappings() *mongo.Collection {
+	return DB.Collection("contabil_user_mappings")
+}
+
 // ── Multi-tenant collections ─────────────────────────────────────────
 
 func Organizations() *mongo.Collection {
@@ -172,6 +178,10 @@ func OrgInvitations() *mongo.Collection {
 
 func Subscriptions() *mongo.Collection {
 	return DB.Collection("subscriptions")
+}
+
+func WebhookLogs() *mongo.Collection {
+	return DB.Collection("webhook_logs")
 }
 
 // EnsureIndexes creates required indexes for engagement collections
@@ -495,6 +505,25 @@ func EnsureIndexes() error {
 		return err
 	}
 
+	// ── Contabil indexes ────────────────────────────────────────────
+
+	// contabil_user_mappings: unique index on {tron_user_id, org_id}
+	_, err = ContabilUserMappings().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "tron_user_id", Value: 1}, {Key: "org_id", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	})
+	if err != nil {
+		return err
+	}
+
+	// contabil_user_mappings: index on org_id for listing
+	_, err = ContabilUserMappings().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "org_id", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
 	// ── Multi-tenant indexes ─────────────────────────────────────────
 
 	// organizations: unique index on slug
@@ -563,6 +592,27 @@ func EnsureIndexes() error {
 	})
 	if err != nil {
 		return err
+	}
+
+	// webhook_logs: unique index on {payment_id, event} for idempotency
+	_, err = WebhookLogs().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "payment_id", Value: 1},
+			{Key: "event", Value: 1},
+		},
+		Options: options.Index().SetUnique(true),
+	})
+	if err != nil {
+		log.Printf("webhook_logs index warning: %v", err)
+	}
+
+	// webhook_logs: TTL index — auto-delete after 180 days
+	_, err = WebhookLogs().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "created_at", Value: 1}},
+		Options: options.Index().SetExpireAfterSeconds(180 * 24 * 60 * 60),
+	})
+	if err != nil {
+		log.Printf("webhook_logs TTL index warning: %v", err)
 	}
 
 	log.Println("Engagement indexes ensured")

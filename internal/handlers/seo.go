@@ -30,6 +30,12 @@ type sitemapURL struct {
 }
 
 // Sitemap generates a dynamic sitemap.xml from published blog posts
+// @Summary Gerar sitemap XML
+// @Description Gera um sitemap.xml dinâmico a partir dos posts publicados do blog
+// @Tags seo
+// @Produce xml
+// @Success 200 {string} string "XML sitemap"
+// @Router /sitemap.xml [get]
 func Sitemap(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -74,6 +80,12 @@ func Sitemap(w http.ResponseWriter, r *http.Request) {
 }
 
 // RobotsTxt serves a robots.txt pointing to the sitemap
+// @Summary Servir robots.txt
+// @Description Retorna o arquivo robots.txt com referência ao sitemap
+// @Tags seo
+// @Produce plain
+// @Success 200 {string} string "robots.txt content"
+// @Router /robots.txt [get]
 func RobotsTxt(w http.ResponseWriter, r *http.Request) {
 	apiURL := os.Getenv("RENDER_EXTERNAL_URL")
 	if apiURL == "" {

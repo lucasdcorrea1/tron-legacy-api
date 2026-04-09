@@ -126,6 +126,62 @@ func RequireOrgRole(roles ...string) func(http.Handler) http.Handler {
 	}
 }
 
+// RequirePlan checks that the org's subscription is active and meets the minimum plan.
+// Blocks access immediately if subscription is canceled, past_due, or on a lower plan.
+// Must be used after RequireOrg middleware.
+func RequirePlan(minPlan string) func(http.Handler) http.Handler {
+	planRank := map[string]int{"free": 0, "starter": 1, "pro": 2, "enterprise": 3}
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			orgID := GetOrgID(r)
+			if orgID == primitive.NilObjectID {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]string{"message": "No organization selected"})
+				return
+			}
+
+			ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+			defer cancel()
+
+			var sub models.Subscription
+			err := database.Subscriptions().FindOne(ctx, bson.M{"org_id": orgID}).Decode(&sub)
+			if err != nil {
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(map[string]string{"message": "Nenhuma assinatura encontrada"})
+				return
+			}
+
+			// Treat non-active subscriptions as free
+			effectivePlan := sub.PlanID
+			if sub.Status != "active" {
+				effectivePlan = "free"
+			}
+
+			// Check plan rank
+			if (planRank[effectivePlan]) < (planRank[minPlan]) {
+				slog.Warn("plan_check_failed",
+					"org_id", orgID.Hex(),
+					"current_plan", effectivePlan,
+					"status", sub.Status,
+					"required_plan", minPlan,
+				)
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"message":       "Recurso requer plano " + minPlan + " ou superior",
+					"current_plan":  effectivePlan,
+					"status":        sub.Status,
+					"required_plan": minPlan,
+					"upgrade":       true,
+				})
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // RequirePermission checks that the user has a specific granular permission.
 // Owner and Admin roles always pass. Members need the permission explicitly.
 // Viewers are always blocked. Must be used after RequireOrg middleware.

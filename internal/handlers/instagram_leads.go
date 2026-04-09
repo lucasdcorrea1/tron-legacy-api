@@ -18,7 +18,20 @@ import (
 )
 
 // ListInstagramLeads returns a paginated, filterable list of leads.
-// GET /api/v1/admin/instagram/leads?page=1&limit=20&search=&tag=&source=
+// @Summary Listar leads do Instagram
+// @Description Retorna lista paginada e filtrável de leads capturados
+// @Tags instagram-leads
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "Página (padrão 1)"
+// @Param limit query int false "Itens por página (padrão 20, máx 100)"
+// @Param search query string false "Buscar por username"
+// @Param tag query string false "Filtrar por tag"
+// @Param source query string false "Filtrar por fonte"
+// @Success 200 {object} models.LeadListResponse
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Erro ao buscar leads"
+// @Router /admin/instagram/leads [get]
 func ListInstagramLeads(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 
@@ -84,7 +97,20 @@ func ListInstagramLeads(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateLeadTags updates the tags for a specific lead.
-// PUT /api/v1/admin/instagram/leads/{id}/tags
+// @Summary Atualizar tags de um lead
+// @Description Atualiza as tags de um lead específico
+// @Tags instagram-leads
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID do lead"
+// @Param body body models.UpdateLeadTagsRequest true "Tags para atualizar"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {string} string "ID ou JSON inválido"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Lead não encontrado"
+// @Failure 500 {string} string "Erro ao atualizar tags"
+// @Router /admin/instagram/leads/{id}/tags [put]
 func UpdateLeadTags(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 
@@ -125,7 +151,15 @@ func UpdateLeadTags(w http.ResponseWriter, r *http.Request) {
 }
 
 // ExportLeadsCSV exports all leads as a CSV file.
-// GET /api/v1/admin/instagram/leads/export
+// @Summary Exportar leads em CSV
+// @Description Exporta todos os leads da organização em formato CSV
+// @Tags instagram-leads
+// @Produce text/csv
+// @Security BearerAuth
+// @Success 200 {file} file "Arquivo CSV"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Erro ao buscar leads"
+// @Router /admin/instagram/leads/export [get]
 func ExportLeadsCSV(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 
@@ -168,7 +202,15 @@ func ExportLeadsCSV(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetLeadStats returns summary statistics for leads.
-// GET /api/v1/admin/instagram/leads/stats
+// @Summary Obter estatísticas de leads
+// @Description Retorna estatísticas resumidas dos leads (total, novos na semana, por fonte)
+// @Tags instagram-leads
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} models.LeadStatsResponse
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Erro ao contar leads"
+// @Router /admin/instagram/leads/stats [get]
 func GetLeadStats(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 

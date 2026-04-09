@@ -82,6 +82,14 @@ var broadcastHistory []broadcastRecord
 // ---------------------------------------------------------------------------
 
 // ListEmailTemplates returns the available email templates.
+// @Summary Listar templates de email
+// @Description Retorna os templates de email marketing disponíveis
+// @Tags email-marketing
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/email-marketing/templates [get]
 func ListEmailTemplates(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -90,6 +98,19 @@ func ListEmailTemplates(w http.ResponseWriter, r *http.Request) {
 }
 
 // PreviewEmailTemplate generates an HTML preview for a given template.
+// @Summary Pré-visualizar template de email
+// @Description Gera um preview HTML para o template especificado
+// @Tags email-marketing
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Template ID"
+// @Param body body previewRequest true "Dados do preview"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {string} string "Dados inválidos"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Template não encontrado"
+// @Router /admin/email-marketing/templates/{id}/preview [post]
 func PreviewEmailTemplate(w http.ResponseWriter, r *http.Request) {
 	templateID := r.PathValue("id")
 
@@ -120,6 +141,16 @@ func PreviewEmailTemplate(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetEmailAudience returns audience stats from Resend.
+// @Summary Obter audiência de email
+// @Description Retorna estatísticas da audiência do Resend
+// @Tags email-marketing
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Resend não configurado"
+// @Failure 502 {string} string "Erro ao consultar audiência"
+// @Router /admin/email-marketing/audience [get]
 func GetEmailAudience(w http.ResponseWriter, r *http.Request) {
 	cfg := config.Get()
 	if cfg.ResendAPIKey == "" || cfg.ResendAudienceID == "" {
@@ -159,6 +190,16 @@ func GetEmailAudience(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListSubscribers returns the list of contacts from the Resend audience.
+// @Summary Listar inscritos
+// @Description Retorna a lista de contatos da audiência do Resend
+// @Tags email-marketing
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Resend não configurado"
+// @Failure 502 {string} string "Erro ao consultar inscritos"
+// @Router /admin/email-marketing/subscribers [get]
 func ListSubscribers(w http.ResponseWriter, r *http.Request) {
 	cfg := config.Get()
 	if cfg.ResendAPIKey == "" || cfg.ResendAudienceID == "" {
@@ -198,6 +239,18 @@ func ListSubscribers(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteSubscriber removes a contact from the Resend audience.
+// @Summary Remover inscrito
+// @Description Remove um contato da audiência do Resend
+// @Tags email-marketing
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Contact ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {string} string "ID do contato é obrigatório"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Resend não configurado"
+// @Failure 502 {string} string "Erro ao remover inscrito"
+// @Router /admin/email-marketing/subscribers/{id} [delete]
 func DeleteSubscriber(w http.ResponseWriter, r *http.Request) {
 	cfg := config.Get()
 	if cfg.ResendAPIKey == "" || cfg.ResendAudienceID == "" {
@@ -244,6 +297,19 @@ func DeleteSubscriber(w http.ResponseWriter, r *http.Request) {
 }
 
 // SendMarketingEmail creates and sends a broadcast via Resend.
+// @Summary Enviar email marketing
+// @Description Cria e envia um broadcast via Resend para toda a audiência
+// @Tags email-marketing
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body sendRequest true "Dados do email"
+// @Success 201 {object} map[string]interface{}
+// @Failure 400 {string} string "Dados inválidos"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Resend não configurado"
+// @Failure 502 {string} string "Erro ao enviar email"
+// @Router /admin/email-marketing/send [post]
 func SendMarketingEmail(w http.ResponseWriter, r *http.Request) {
 	cfg := config.Get()
 	if cfg.ResendAPIKey == "" || cfg.ResendAudienceID == "" {
@@ -353,6 +419,14 @@ func SendMarketingEmail(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListBroadcasts returns the history of sent broadcasts.
+// @Summary Listar broadcasts
+// @Description Retorna o histórico de broadcasts enviados em ordem cronológica reversa
+// @Tags email-marketing
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/email-marketing/broadcasts [get]
 func ListBroadcasts(w http.ResponseWriter, r *http.Request) {
 	history := broadcastHistory
 	if history == nil {
@@ -373,6 +447,16 @@ func ListBroadcasts(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetBroadcast returns details of a specific broadcast.
+// @Summary Obter broadcast por ID
+// @Description Retorna detalhes de um broadcast específico
+// @Tags email-marketing
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Broadcast ID"
+// @Success 200 {object} broadcastRecord
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Broadcast não encontrado"
+// @Router /admin/email-marketing/broadcasts/{id} [get]
 func GetBroadcast(w http.ResponseWriter, r *http.Request) {
 	broadcastID := r.PathValue("id")
 

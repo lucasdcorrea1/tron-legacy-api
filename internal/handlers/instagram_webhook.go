@@ -27,7 +27,17 @@ import (
 // ─── Webhook verification (GET) ──────────────────────────────────────
 
 // WebhookVerify handles the Meta webhook verification handshake.
-// GET /api/v1/webhooks/instagram?hub.mode=subscribe&hub.verify_token=...&hub.challenge=...
+// @Summary Verificação de webhook do Instagram
+// @Description Handshake de verificação do webhook Meta (chamado automaticamente pelo Meta)
+// @Tags webhooks
+// @Produce plain
+// @Param hub.mode query string true "Modo de verificação (subscribe)"
+// @Param hub.verify_token query string true "Token de verificação"
+// @Param hub.challenge query string true "Challenge para resposta"
+// @Success 200 {string} string "Challenge response"
+// @Failure 403 {string} string "Forbidden"
+// @Failure 500 {string} string "Server not configured"
+// @Router /webhooks/instagram [get]
 func WebhookVerify(w http.ResponseWriter, r *http.Request) {
 	mode := r.URL.Query().Get("hub.mode")
 	token := r.URL.Query().Get("hub.verify_token")
@@ -96,7 +106,15 @@ type webhookMessaging struct {
 }
 
 // WebhookEvent processes incoming Instagram webhook events.
-// POST /api/v1/webhooks/instagram
+// @Summary Receber evento de webhook do Instagram
+// @Description Processa eventos de webhook do Instagram (comentários e DMs) com validação de assinatura
+// @Tags webhooks
+// @Accept json
+// @Param X-Hub-Signature-256 header string false "Assinatura HMAC SHA-256 do payload"
+// @Success 200 {string} string "OK"
+// @Failure 400 {string} string "Bad request"
+// @Failure 403 {string} string "Forbidden"
+// @Router /webhooks/instagram [post]
 func WebhookEvent(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)) // 1MB limit
 	if err != nil {

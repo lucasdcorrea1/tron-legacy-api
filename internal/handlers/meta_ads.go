@@ -214,6 +214,15 @@ func adAccountPath(adAccountID string) string {
 // AD ACCOUNTS (list all accounts the token has access to)
 // ══════════════════════════════════════════════════════════════════════
 
+// ListMetaAdsAccounts godoc
+// @Summary Listar contas de anúncios
+// @Description Lista todas as contas de anúncios do Meta Ads que o token tem acesso
+// @Tags meta-ads
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/accounts [get]
 func ListMetaAdsAccounts(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -237,6 +246,16 @@ func ListMetaAdsAccounts(w http.ResponseWriter, r *http.Request) {
 // CAMPAIGNS
 // ══════════════════════════════════════════════════════════════════════
 
+// ListMetaAdsCampaigns godoc
+// @Summary Listar campanhas
+// @Description Lista campanhas do Meta Ads da conta configurada
+// @Tags meta-ads
+// @Produce json
+// @Security BearerAuth
+// @Param status query string false "Filtrar por status (ACTIVE, PAUSED, etc.)"
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/campaigns [get]
 func ListMetaAdsCampaigns(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -261,6 +280,18 @@ func ListMetaAdsCampaigns(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
+// CreateMetaAdsCampaign godoc
+// @Summary Criar campanha
+// @Description Cria uma nova campanha no Meta Ads
+// @Tags meta-ads
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.CreateCampaignRequest true "Dados da campanha"
+// @Success 201 {object} map[string]interface{}
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/campaigns [post]
 func CreateMetaAdsCampaign(w http.ResponseWriter, r *http.Request) {
 	userID, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -352,6 +383,17 @@ func CreateMetaAdsCampaign(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// GetMetaAdsCampaign godoc
+// @Summary Obter campanha
+// @Description Retorna detalhes de uma campanha específica do Meta Ads
+// @Tags meta-ads
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID da campanha no Meta"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/campaigns/{id} [get]
 func GetMetaAdsCampaign(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -376,6 +418,19 @@ func GetMetaAdsCampaign(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
+// UpdateMetaAdsCampaign godoc
+// @Summary Atualizar campanha
+// @Description Atualiza campos de uma campanha existente no Meta Ads
+// @Tags meta-ads
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID da campanha no Meta"
+// @Param body body models.UpdateCampaignRequest true "Campos a atualizar"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/campaigns/{id} [put]
 func UpdateMetaAdsCampaign(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -441,6 +496,17 @@ func UpdateMetaAdsCampaign(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"message": "Campaign updated"})
 }
 
+// DeleteMetaAdsCampaign godoc
+// @Summary Excluir campanha
+// @Description Exclui uma campanha do Meta Ads
+// @Tags meta-ads
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID da campanha no Meta"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/campaigns/{id} [delete]
 func DeleteMetaAdsCampaign(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -467,6 +533,19 @@ func DeleteMetaAdsCampaign(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"message": "Campaign deleted"})
 }
 
+// UpdateMetaAdsCampaignStatus godoc
+// @Summary Atualizar status da campanha
+// @Description Atualiza apenas o status de uma campanha (ACTIVE, PAUSED, etc.)
+// @Tags meta-ads
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID da campanha no Meta"
+// @Param body body models.UpdateStatusRequest true "Novo status"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/campaigns/{id}/status [patch]
 func UpdateMetaAdsCampaignStatus(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -514,6 +593,16 @@ func UpdateMetaAdsCampaignStatus(w http.ResponseWriter, r *http.Request) {
 // AD SETS
 // ══════════════════════════════════════════════════════════════════════
 
+// ListMetaAdsAdSets godoc
+// @Summary Listar conjuntos de anúncios
+// @Description Lista conjuntos de anúncios (ad sets) da conta ou de uma campanha específica
+// @Tags meta-ads
+// @Produce json
+// @Security BearerAuth
+// @Param campaign_id query string false "Filtrar por campanha"
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/adsets [get]
 func ListMetaAdsAdSets(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -544,6 +633,18 @@ func ListMetaAdsAdSets(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
+// CreateMetaAdsAdSet godoc
+// @Summary Criar conjunto de anúncios
+// @Description Cria um novo conjunto de anúncios (ad set) no Meta Ads
+// @Tags meta-ads
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.CreateAdSetRequest true "Dados do conjunto de anúncios"
+// @Success 201 {object} map[string]interface{}
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/adsets [post]
 func CreateMetaAdsAdSet(w http.ResponseWriter, r *http.Request) {
 	userID, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -639,6 +740,17 @@ func CreateMetaAdsAdSet(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// GetMetaAdsAdSet godoc
+// @Summary Obter conjunto de anúncios
+// @Description Retorna detalhes de um conjunto de anúncios específico
+// @Tags meta-ads
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID do ad set no Meta"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/adsets/{id} [get]
 func GetMetaAdsAdSet(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -663,6 +775,19 @@ func GetMetaAdsAdSet(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
+// UpdateMetaAdsAdSet godoc
+// @Summary Atualizar conjunto de anúncios
+// @Description Atualiza campos de um conjunto de anúncios existente
+// @Tags meta-ads
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID do ad set no Meta"
+// @Param body body models.UpdateAdSetRequest true "Campos a atualizar"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/adsets/{id} [put]
 func UpdateMetaAdsAdSet(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -725,6 +850,17 @@ func UpdateMetaAdsAdSet(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"message": "Ad set updated"})
 }
 
+// DeleteMetaAdsAdSet godoc
+// @Summary Excluir conjunto de anúncios
+// @Description Exclui um conjunto de anúncios do Meta Ads
+// @Tags meta-ads
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID do ad set no Meta"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/adsets/{id} [delete]
 func DeleteMetaAdsAdSet(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -751,6 +887,19 @@ func DeleteMetaAdsAdSet(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"message": "Ad set deleted"})
 }
 
+// UpdateMetaAdsAdSetStatus godoc
+// @Summary Atualizar status do conjunto de anúncios
+// @Description Atualiza apenas o status de um conjunto de anúncios (ACTIVE, PAUSED, etc.)
+// @Tags meta-ads
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID do ad set no Meta"
+// @Param body body models.UpdateStatusRequest true "Novo status"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/adsets/{id}/status [patch]
 func UpdateMetaAdsAdSetStatus(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -798,6 +947,16 @@ func UpdateMetaAdsAdSetStatus(w http.ResponseWriter, r *http.Request) {
 // ADS
 // ══════════════════════════════════════════════════════════════════════
 
+// ListMetaAdsAds godoc
+// @Summary Listar anúncios
+// @Description Lista anúncios da conta ou de um ad set específico
+// @Tags meta-ads
+// @Produce json
+// @Security BearerAuth
+// @Param adset_id query string false "Filtrar por ad set"
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/ads [get]
 func ListMetaAdsAds(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -827,6 +986,18 @@ func ListMetaAdsAds(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
+// CreateMetaAdsAd godoc
+// @Summary Criar anúncio
+// @Description Cria um novo anúncio com creative no Meta Ads
+// @Tags meta-ads
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.CreateAdRequest true "Dados do anúncio"
+// @Success 201 {object} map[string]interface{}
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/ads [post]
 func CreateMetaAdsAd(w http.ResponseWriter, r *http.Request) {
 	userID, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -992,6 +1163,17 @@ func buildObjectStorySpec(creds *metaAdsCredentials, creative models.AdCreative)
 	return spec
 }
 
+// GetMetaAdsAd godoc
+// @Summary Obter anúncio
+// @Description Retorna detalhes de um anúncio específico
+// @Tags meta-ads
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID do anúncio no Meta"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/ads/{id} [get]
 func GetMetaAdsAd(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -1016,6 +1198,19 @@ func GetMetaAdsAd(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
+// UpdateMetaAdsAd godoc
+// @Summary Atualizar anúncio
+// @Description Atualiza campos de um anúncio existente
+// @Tags meta-ads
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID do anúncio no Meta"
+// @Param body body models.UpdateAdRequest true "Campos a atualizar"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/ads/{id} [put]
 func UpdateMetaAdsAd(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -1059,6 +1254,17 @@ func UpdateMetaAdsAd(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"message": "Ad updated"})
 }
 
+// DeleteMetaAdsAd godoc
+// @Summary Excluir anúncio
+// @Description Exclui um anúncio do Meta Ads
+// @Tags meta-ads
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID do anúncio no Meta"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/ads/{id} [delete]
 func DeleteMetaAdsAd(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -1085,6 +1291,19 @@ func DeleteMetaAdsAd(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"message": "Ad deleted"})
 }
 
+// UpdateMetaAdsAdStatus godoc
+// @Summary Atualizar status do anúncio
+// @Description Atualiza apenas o status de um anúncio (ACTIVE, PAUSED, etc.)
+// @Tags meta-ads
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID do anúncio no Meta"
+// @Param body body models.UpdateStatusRequest true "Novo status"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/ads/{id}/status [patch]
 func UpdateMetaAdsAdStatus(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -1132,6 +1351,19 @@ func UpdateMetaAdsAdStatus(w http.ResponseWriter, r *http.Request) {
 // UPLOAD (images & videos)
 // ══════════════════════════════════════════════════════════════════════
 
+// UploadMetaAdsImage godoc
+// @Summary Upload de imagem
+// @Description Faz upload de uma imagem para uso em criativos do Meta Ads (max 30MB)
+// @Tags meta-ads
+// @Accept multipart/form-data
+// @Produce json
+// @Security BearerAuth
+// @Param image formData file true "Arquivo de imagem"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 413 {string} string "File too large"
+// @Router /admin/meta-ads/upload/image [post]
 func UploadMetaAdsImage(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -1191,6 +1423,20 @@ func UploadMetaAdsImage(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
+// UploadMetaAdsVideo godoc
+// @Summary Upload de vídeo
+// @Description Faz upload de um vídeo para uso em criativos do Meta Ads (max 100MB)
+// @Tags meta-ads
+// @Accept multipart/form-data
+// @Produce json
+// @Security BearerAuth
+// @Param video formData file true "Arquivo de vídeo"
+// @Param title formData string false "Título do vídeo"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 413 {string} string "File too large"
+// @Router /admin/meta-ads/upload/video [post]
 func UploadMetaAdsVideo(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -1256,6 +1502,19 @@ func UploadMetaAdsVideo(w http.ResponseWriter, r *http.Request) {
 // INSIGHTS
 // ══════════════════════════════════════════════════════════════════════
 
+// GetMetaAdsInsights godoc
+// @Summary Obter insights da conta
+// @Description Retorna métricas de desempenho da conta (impressões, cliques, gastos, etc.)
+// @Tags meta-ads
+// @Produce json
+// @Security BearerAuth
+// @Param level query string false "Nível de agregação (account, campaign, adset, ad)" default(account)
+// @Param time_increment query string false "Incremento de tempo (1, 7, 28, monthly, etc.)"
+// @Param date_start query string false "Data início (YYYY-MM-DD)"
+// @Param date_stop query string false "Data fim (YYYY-MM-DD)"
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/insights [get]
 func GetMetaAdsInsights(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -1298,6 +1557,19 @@ func GetMetaAdsInsights(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
+// GetMetaAdsCampaignInsights godoc
+// @Summary Obter insights de campanha
+// @Description Retorna métricas de desempenho de uma campanha específica
+// @Tags meta-ads
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID da campanha no Meta"
+// @Param date_start query string false "Data início (YYYY-MM-DD)"
+// @Param date_stop query string false "Data fim (YYYY-MM-DD)"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/campaigns/{id}/insights [get]
 func GetMetaAdsCampaignInsights(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -1339,6 +1611,15 @@ func GetMetaAdsCampaignInsights(w http.ResponseWriter, r *http.Request) {
 // ACCOUNT FINANCE
 // ══════════════════════════════════════════════════════════════════════
 
+// GetMetaAdsAccountFinance godoc
+// @Summary Obter dados financeiros da conta
+// @Description Retorna informações financeiras da conta (saldo, gastos, spend cap, etc.)
+// @Tags meta-ads
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/account/finance [get]
 func GetMetaAdsAccountFinance(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -1444,6 +1725,15 @@ func GetMetaAdsAccountFinance(w http.ResponseWriter, r *http.Request) {
 // ACCOUNT RECOMMENDATIONS (opportunity score + recommendations)
 // ══════════════════════════════════════════════════════════════════════
 
+// GetMetaAdsRecommendations godoc
+// @Summary Obter recomendações da conta
+// @Description Retorna opportunity score e recomendações do Meta para a conta
+// @Tags meta-ads
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/account/recommendations [get]
 func GetMetaAdsRecommendations(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -1499,6 +1789,17 @@ func GetMetaAdsRecommendations(w http.ResponseWriter, r *http.Request) {
 // TARGETING (search interests, locations, audiences)
 // ══════════════════════════════════════════════════════════════════════
 
+// SearchMetaAdsInterests godoc
+// @Summary Buscar interesses para targeting
+// @Description Pesquisa interesses disponíveis para segmentação de anúncios
+// @Tags meta-ads
+// @Produce json
+// @Security BearerAuth
+// @Param q query string true "Termo de busca"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/targeting/interests [get]
 func SearchMetaAdsInterests(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -1525,6 +1826,18 @@ func SearchMetaAdsInterests(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
+// SearchMetaAdsLocations godoc
+// @Summary Buscar localizações para targeting
+// @Description Pesquisa localizações geográficas para segmentação de anúncios
+// @Tags meta-ads
+// @Produce json
+// @Security BearerAuth
+// @Param q query string true "Termo de busca"
+// @Param type query string false "Tipo de localização (adgeolocation, adcountry, etc.)" default(adgeolocation)
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/targeting/locations [get]
 func SearchMetaAdsLocations(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -1556,6 +1869,15 @@ func SearchMetaAdsLocations(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
+// ListMetaAdsAudiences godoc
+// @Summary Listar audiências personalizadas
+// @Description Lista custom audiences da conta de anúncios
+// @Tags meta-ads
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/targeting/audiences [get]
 func ListMetaAdsAudiences(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireMetaAdsCreds(w, r)
 	if !ok {
@@ -1578,6 +1900,15 @@ func ListMetaAdsAudiences(w http.ResponseWriter, r *http.Request) {
 // TARGETING PRESETS
 // ══════════════════════════════════════════════════════════════════════
 
+// ListMetaAdsPresets godoc
+// @Summary Listar presets de targeting
+// @Description Lista presets de segmentação salvos pela organização
+// @Tags meta-ads
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {array} models.TargetingPreset
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/presets [get]
 func ListMetaAdsPresets(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	if userID == primitive.NilObjectID {
@@ -1612,6 +1943,18 @@ func ListMetaAdsPresets(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(presets)
 }
 
+// CreateMetaAdsPreset godoc
+// @Summary Criar preset de targeting
+// @Description Salva um novo preset de segmentação para reutilização
+// @Tags meta-ads
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.CreateTargetingPresetRequest true "Dados do preset"
+// @Success 201 {object} models.TargetingPreset
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/presets [post]
 func CreateMetaAdsPreset(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	if userID == primitive.NilObjectID {
@@ -1653,6 +1996,18 @@ func CreateMetaAdsPreset(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(preset)
 }
 
+// DeleteMetaAdsPreset godoc
+// @Summary Excluir preset de targeting
+// @Description Exclui um preset de segmentação salvo
+// @Tags meta-ads
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID do preset"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Not Found"
+// @Router /admin/meta-ads/presets/{id} [delete]
 func DeleteMetaAdsPreset(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	if userID == primitive.NilObjectID {
@@ -1689,6 +2044,15 @@ func DeleteMetaAdsPreset(w http.ResponseWriter, r *http.Request) {
 // CAMPAIGN TEMPLATES
 // ══════════════════════════════════════════════════════════════════════
 
+// ListMetaAdsTemplates godoc
+// @Summary Listar templates de campanha
+// @Description Lista templates de campanha salvos pela organização
+// @Tags meta-ads
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {array} models.CampaignTemplate
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/templates [get]
 func ListMetaAdsTemplates(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	if userID == primitive.NilObjectID {
@@ -1723,6 +2087,18 @@ func ListMetaAdsTemplates(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(templates)
 }
 
+// CreateMetaAdsTemplate godoc
+// @Summary Criar template de campanha
+// @Description Salva um novo template de campanha para reutilização
+// @Tags meta-ads
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.CreateCampaignTemplateRequest true "Dados do template"
+// @Success 201 {object} models.CampaignTemplate
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/templates [post]
 func CreateMetaAdsTemplate(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	if userID == primitive.NilObjectID {
@@ -1771,6 +2147,18 @@ func CreateMetaAdsTemplate(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(tpl)
 }
 
+// DeleteMetaAdsTemplate godoc
+// @Summary Excluir template de campanha
+// @Description Exclui um template de campanha salvo
+// @Tags meta-ads
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID do template"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Not Found"
+// @Router /admin/meta-ads/templates/{id} [delete]
 func DeleteMetaAdsTemplate(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	if userID == primitive.NilObjectID {
@@ -1807,6 +2195,15 @@ func DeleteMetaAdsTemplate(w http.ResponseWriter, r *http.Request) {
 // BUDGET ALERTS
 // ══════════════════════════════════════════════════════════════════════
 
+// ListMetaAdsBudgetAlerts godoc
+// @Summary Listar alertas de orçamento
+// @Description Lista alertas de orçamento configurados para a organização
+// @Tags meta-ads
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {array} models.BudgetAlert
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/alerts [get]
 func ListMetaAdsBudgetAlerts(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	if userID == primitive.NilObjectID {
@@ -1841,6 +2238,18 @@ func ListMetaAdsBudgetAlerts(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(alerts)
 }
 
+// CreateMetaAdsBudgetAlert godoc
+// @Summary Criar alerta de orçamento
+// @Description Cria um novo alerta de orçamento (daily_spend ou total_spend)
+// @Tags meta-ads
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.CreateBudgetAlertRequest true "Dados do alerta"
+// @Success 201 {object} models.BudgetAlert
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/meta-ads/alerts [post]
 func CreateMetaAdsBudgetAlert(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	if userID == primitive.NilObjectID {
@@ -1886,6 +2295,20 @@ func CreateMetaAdsBudgetAlert(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(alert)
 }
 
+// UpdateMetaAdsBudgetAlert godoc
+// @Summary Atualizar alerta de orçamento
+// @Description Atualiza campos de um alerta de orçamento existente
+// @Tags meta-ads
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID do alerta"
+// @Param body body models.UpdateBudgetAlertRequest true "Campos a atualizar"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Not Found"
+// @Router /admin/meta-ads/alerts/{id} [put]
 func UpdateMetaAdsBudgetAlert(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	if userID == primitive.NilObjectID {
@@ -1937,6 +2360,18 @@ func UpdateMetaAdsBudgetAlert(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"message": "Alert updated"})
 }
 
+// DeleteMetaAdsBudgetAlert godoc
+// @Summary Excluir alerta de orçamento
+// @Description Exclui um alerta de orçamento
+// @Tags meta-ads
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID do alerta"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Not Found"
+// @Router /admin/meta-ads/alerts/{id} [delete]
 func DeleteMetaAdsBudgetAlert(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	if userID == primitive.NilObjectID {

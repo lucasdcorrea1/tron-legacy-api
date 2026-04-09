@@ -1,0 +1,26 @@
+# flyctl launch added from .gitignore
+# Environment
+**/.env
+
+# Build
+**/bin
+**/*.exe
+
+# IDE
+**/.idea
+**/.vscode
+**/*.swp
+
+# OS
+**/.DS_Store
+**/Thumbs.db
+
+# Logs
+**/*.log
+fly.toml
+
+# Monitoring (not needed in build)
+monitoring/
+grafana/
+docs/features/
+*.md

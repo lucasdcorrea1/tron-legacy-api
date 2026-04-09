@@ -15,6 +15,17 @@ import (
 )
 
 // PlatformListOrgs lists all organizations (superadmin only).
+// @Summary Listar todas as organizações
+// @Description Lista todas as organizações da plataforma (somente superadmin)
+// @Tags platform
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "Página (padrão 1)"
+// @Param limit query int false "Itens por página (padrão 20, máx 100)"
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Error listing organizations"
+// @Router /platform/orgs [get]
 func PlatformListOrgs(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -58,6 +69,14 @@ func PlatformListOrgs(w http.ResponseWriter, r *http.Request) {
 }
 
 // PlatformStats returns platform-wide metrics (superadmin only).
+// @Summary Estatísticas da plataforma
+// @Description Retorna métricas globais da plataforma (somente superadmin)
+// @Tags platform
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {string} string "Unauthorized"
+// @Router /platform/stats [get]
 func PlatformStats(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -82,6 +101,15 @@ func PlatformStats(w http.ResponseWriter, r *http.Request) {
 }
 
 // PlatformOrgsWithMembers returns all organizations with their members (superadmin only).
+// @Summary Organizações com membros
+// @Description Retorna todas as organizações com seus membros (somente superadmin)
+// @Tags platform
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Error listing organizations"
+// @Router /platform/orgs-with-members [get]
 func PlatformOrgsWithMembers(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -161,6 +189,19 @@ func PlatformOrgsWithMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 // PlatformUpdatePlan overrides an organization's subscription plan (superadmin only).
+// @Summary Atualizar plano de organização
+// @Description Sobrescreve o plano de assinatura de uma organização (somente superadmin)
+// @Tags platform
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Organization ID"
+// @Param body body object true "Novo plano (plan_id)"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Invalid plan ID"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Subscription not found"
+// @Router /platform/orgs/{id}/plan [put]
 func PlatformUpdatePlan(w http.ResponseWriter, r *http.Request) {
 	orgID, err := primitive.ObjectIDFromHex(r.PathValue("id"))
 	if err != nil {
@@ -198,5 +239,119 @@ func PlatformUpdatePlan(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": "Plan updated to " + req.PlanID,
+	})
+}
+
+// PlatformListSubscriptions returns all organizations with their subscription details (superadmin only).
+func PlatformListSubscriptions(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	// Fetch all orgs
+	cursor, err := database.Organizations().Find(ctx, bson.M{}, options.Find().SetSort(bson.D{{Key: "name", Value: 1}}))
+	if err != nil {
+		http.Error(w, "Error listing organizations", http.StatusInternalServerError)
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var allOrgs []models.Organization
+	cursor.All(ctx, &allOrgs)
+	if allOrgs == nil {
+		allOrgs = []models.Organization{}
+	}
+
+	type orgSubscription struct {
+		OrgID        primitive.ObjectID  `json:"org_id"`
+		OrgName      string              `json:"org_name"`
+		OrgSlug      string              `json:"org_slug"`
+		OwnerName    string              `json:"owner_name"`
+		OwnerEmail   string              `json:"owner_email"`
+		MemberCount  int                 `json:"member_count"`
+		Subscription *models.Subscription `json:"subscription"`
+	}
+
+	result := make([]orgSubscription, 0, len(allOrgs))
+
+	for _, org := range allOrgs {
+		item := orgSubscription{
+			OrgID:   org.ID,
+			OrgName: org.Name,
+			OrgSlug: org.Slug,
+		}
+
+		// Get owner info
+		var ownerProfile models.Profile
+		if err := database.Profiles().FindOne(ctx, bson.M{"user_id": org.OwnerUserID}).Decode(&ownerProfile); err == nil {
+			item.OwnerName = ownerProfile.Name
+		}
+		var ownerUser models.User
+		if err := database.Users().FindOne(ctx, bson.M{"_id": org.OwnerUserID}).Decode(&ownerUser); err == nil {
+			item.OwnerEmail = ownerUser.Email
+		}
+
+		// Count members
+		count, _ := database.OrgMemberships().CountDocuments(ctx, bson.M{"org_id": org.ID})
+		item.MemberCount = int(count)
+
+		// Get subscription
+		var sub models.Subscription
+		if err := database.Subscriptions().FindOne(ctx, bson.M{"org_id": org.ID}).Decode(&sub); err == nil {
+			item.Subscription = &sub
+		}
+
+		result = append(result, item)
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"subscriptions": result,
+		"total":         len(result),
+	})
+}
+
+// PlatformUpdateSubscriptionStatus activates or deactivates a subscription (superadmin only).
+func PlatformUpdateSubscriptionStatus(w http.ResponseWriter, r *http.Request) {
+	orgID, err := primitive.ObjectIDFromHex(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "Invalid organization ID", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Status string `json:"status"` // "active" or "canceled"
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Status != "active" && req.Status != "canceled" {
+		http.Error(w, "Status must be 'active' or 'canceled'", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	update := bson.M{
+		"$set": bson.M{
+			"status":     req.Status,
+			"updated_at": time.Now(),
+		},
+	}
+
+	// If canceling, also downgrade to free
+	if req.Status == "canceled" {
+		update["$set"].(bson.M)["plan_id"] = "free"
+	}
+
+	result, err := database.Subscriptions().UpdateOne(ctx, bson.M{"org_id": orgID}, update)
+	if err != nil || result.MatchedCount == 0 {
+		http.Error(w, "Subscription not found", http.StatusNotFound)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "Subscription status updated to " + req.Status,
 	})
 }

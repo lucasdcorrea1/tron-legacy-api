@@ -33,6 +33,14 @@ func maskAPIKey(key string) string {
 }
 
 // GetAIConfig returns whether AI is configured for the current org
+// @Summary Obter configuração de IA
+// @Description Retorna se a IA está configurada para a organização atual
+// @Tags ai
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} models.AIConfigResponse
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/ai/config [get]
 func GetAIConfig(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 
@@ -56,6 +64,19 @@ func GetAIConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // SaveAIConfig saves or updates AI config for the current org
+// @Summary Salvar configuração de IA
+// @Description Salva ou atualiza a configuração de IA (provider, model, API key) para a organização
+// @Tags ai
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.SaveAIConfigRequest true "Dados da configuração"
+// @Success 200 {object} models.AIConfigResponse
+// @Failure 400 {string} string "Dados inválidos"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Failed to save AI config"
+// @Failure 503 {string} string "Encryption not configured"
+// @Router /admin/ai/config [put]
 func SaveAIConfig(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	orgID := middleware.GetOrgID(r)
@@ -192,6 +213,15 @@ func SaveAIConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteAIConfig removes AI config for the current org
+// @Summary Remover configuração de IA
+// @Description Remove a configuração de IA da organização atual
+// @Tags ai
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]bool
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Failed to delete AI config"
+// @Router /admin/ai/config [delete]
 func DeleteAIConfig(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 
@@ -209,6 +239,19 @@ func DeleteAIConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // GenerateAIContent generates content using the configured AI provider
+// @Summary Gerar conteúdo com IA
+// @Description Gera conteúdo (legenda ou nome de campanha) usando o provider de IA configurado
+// @Tags ai
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.AIGenerateRequest true "Dados para geração"
+// @Success 200 {object} models.AIGenerateResponse
+// @Failure 400 {string} string "Dados inválidos ou IA não configurada"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Error loading AI config"
+// @Failure 502 {string} string "Erro da IA"
+// @Router /admin/ai/generate [post]
 func GenerateAIContent(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 

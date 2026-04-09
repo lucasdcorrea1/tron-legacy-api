@@ -109,6 +109,9 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		// Non-fatal: user is created, they just won't have an org yet
 	}
 
+	// Auto-accept any pre-accepted invitations for this user
+	AutoAcceptInvitations(ctx, user.ID, user.Email)
+
 	// Generate JWT access token with org_id
 	token, err := GenerateTokenWithOrg(user, orgID.Hex())
 	if err != nil {
@@ -201,6 +204,9 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Profile not found", http.StatusInternalServerError)
 		return
 	}
+
+	// Auto-accept any pre-accepted invitations for this user
+	AutoAcceptInvitations(ctx, user.ID, user.Email)
 
 	// Get default org for the user
 	orgID, err := GetDefaultOrgForUser(ctx, user.ID)
@@ -349,7 +355,17 @@ type refreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// Refresh exchanges a valid refresh token for a new access + refresh token pair.
+// Refresh godoc
+// @Summary Renovar tokens de acesso
+// @Description Troca um refresh token válido por um novo par de access + refresh token
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body refreshRequest true "Refresh token"
+// @Success 200 {object} models.AuthResponse
+// @Failure 400 {string} string "refresh_token is required"
+// @Failure 401 {string} string "Invalid or expired refresh token"
+// @Router /auth/refresh [post]
 func Refresh(w http.ResponseWriter, r *http.Request) {
 	var req refreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.RefreshToken == "" {
@@ -426,7 +442,15 @@ type logoutRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// Logout invalidates the provided refresh token.
+// Logout godoc
+// @Summary Logout do usuário
+// @Description Invalida o refresh token fornecido
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body logoutRequest true "Refresh token para invalidar"
+// @Success 200 {object} map[string]string
+// @Router /auth/logout [post]
 func Logout(w http.ResponseWriter, r *http.Request) {
 	var req logoutRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err == nil && req.RefreshToken != "" {

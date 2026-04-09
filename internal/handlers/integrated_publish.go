@@ -23,6 +23,18 @@ import (
 // INTEGRATED PUBLISH HANDLERS
 // ══════════════════════════════════════════════════════════════════════
 
+// @Summary Criar publicação integrada
+// @Description Cria uma publicação integrada (Instagram + Meta Ads) agendada
+// @Tags integrated-publish
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.CreateIntegratedPublishRequest true "Dados da publicação"
+// @Success 201 {object} models.IntegratedPublishResponse
+// @Failure 400 {string} string "Dados inválidos"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Error creating integrated publish"
+// @Router /admin/integrated-publish [post]
 func CreateIntegratedPublish(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	orgID := middleware.GetOrgID(r)
@@ -147,6 +159,18 @@ func CreateIntegratedPublish(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(buildIPResponse(pub))
 }
 
+// @Summary Listar publicações integradas
+// @Description Lista publicações integradas com paginação e filtro por status
+// @Tags integrated-publish
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "Página (padrão 1)"
+// @Param limit query int false "Itens por página (padrão 10, máx 50)"
+// @Param status query string false "Filtrar por status"
+// @Success 200 {object} models.IntegratedPublishListResponse
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Error fetching records"
+// @Router /admin/integrated-publish [get]
 func ListIntegratedPublishes(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 	if orgID == primitive.NilObjectID {
@@ -209,6 +233,17 @@ func ListIntegratedPublishes(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary Obter publicação integrada
+// @Description Retorna uma publicação integrada pelo ID
+// @Tags integrated-publish
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Publish ID"
+// @Success 200 {object} models.IntegratedPublishResponse
+// @Failure 400 {string} string "Invalid ID"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Not found"
+// @Router /admin/integrated-publish/{id} [get]
 func GetIntegratedPublish(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 	if orgID == primitive.NilObjectID {
@@ -235,6 +270,20 @@ func GetIntegratedPublish(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(buildIPResponse(pub))
 }
 
+// @Summary Atualizar publicação integrada
+// @Description Atualiza data de agendamento ou status de uma publicação integrada
+// @Tags integrated-publish
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Publish ID"
+// @Param body body object true "Campos para atualização (scheduled_at, status)"
+// @Success 200 {object} models.IntegratedPublishResponse
+// @Failure 400 {string} string "Dados inválidos"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Not found"
+// @Failure 500 {string} string "Error updating record"
+// @Router /admin/integrated-publish/{id} [put]
 func UpdateIntegratedPublish(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 	if orgID == primitive.NilObjectID {
@@ -305,6 +354,18 @@ func UpdateIntegratedPublish(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(buildIPResponse(pub))
 }
 
+// @Summary Deletar publicação integrada
+// @Description Remove uma publicação integrada (não pode deletar durante publicação)
+// @Tags integrated-publish
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Publish ID"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Cannot delete while publishing is in progress"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Not found"
+// @Failure 500 {string} string "Error deleting record"
+// @Router /admin/integrated-publish/{id} [delete]
 func DeleteIntegratedPublish(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 	if orgID == primitive.NilObjectID {

@@ -161,6 +161,15 @@ func requireInstagramCreds(w http.ResponseWriter, r *http.Request) (primitive.Ob
 }
 
 // ListInstagramAccounts returns all Instagram Business accounts accessible via the stored token.
+// @Summary Listar contas Instagram vinculadas
+// @Description Retorna todas as contas Instagram Business acessíveis pelo token armazenado
+// @Tags instagram
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {string} string "Instagram not configured"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/instagram/accounts [get]
 func ListInstagramAccounts(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireInstagramCreds(w, r)
 	if !ok {
@@ -185,6 +194,15 @@ func ListInstagramAccounts(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetInstagramConfig returns whether Instagram is configured (DB first, then env fallback)
+// @Summary Obter configuração do Instagram
+// @Description Retorna se o Instagram está configurado e detalhes da configuração
+// @Tags instagram
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} models.InstagramConfigResponse
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Error checking config"
+// @Router /admin/instagram/config [get]
 func GetInstagramConfig(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	orgID := middleware.GetOrgID(r)
@@ -256,6 +274,18 @@ func GetInstagramConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // SaveInstagramConfig saves or updates per-user Instagram credentials
+// @Summary Salvar configuração do Instagram
+// @Description Salva ou atualiza credenciais do Instagram para a organização
+// @Tags instagram
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.SaveInstagramConfigRequest true "Configuração do Instagram"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {string} string "Invalid request"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Error saving config"
+// @Router /admin/instagram/config [put]
 func SaveInstagramConfig(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	orgID := middleware.GetOrgID(r)
@@ -401,6 +431,17 @@ func SaveInstagramConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteInstagramConfig removes per-org Instagram credentials
+// @Summary Remover configuração do Instagram
+// @Description Remove as credenciais do Instagram da organização
+// @Tags instagram
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Organization context required"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "No config found"
+// @Failure 500 {string} string "Error deleting config"
+// @Router /admin/instagram/config [delete]
 func DeleteInstagramConfig(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	orgID := middleware.GetOrgID(r)
@@ -445,6 +486,16 @@ func DeleteInstagramConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // TestInstagramConnection verifies credentials by fetching account info (read-only, no publish)
+// @Summary Testar conexão com Instagram
+// @Description Verifica as credenciais buscando informações da conta (somente leitura)
+// @Tags instagram
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{} "Instagram API error"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 502 {string} string "Failed to reach Instagram API"
+// @Router /admin/instagram/test [get]
 func TestInstagramConnection(w http.ResponseWriter, r *http.Request) {
 	userID, creds, ok := requireInstagramCreds(w, r)
 	if !ok {
@@ -534,6 +585,17 @@ func TestInstagramConnection(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetInstagramFeed fetches recent media from the Instagram account (read-only)
+// @Summary Obter feed do Instagram
+// @Description Busca mídias recentes da conta Instagram (somente leitura)
+// @Tags instagram
+// @Produce json
+// @Security BearerAuth
+// @Param limit query string false "Número de itens (padrão 12)"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{} "Instagram API error"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 502 {string} string "Failed to reach Instagram API"
+// @Router /admin/instagram/feed [get]
 func GetInstagramFeed(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireInstagramCreds(w, r)
 	if !ok {
@@ -577,6 +639,18 @@ func GetInstagramFeed(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateInstagramSchedule creates a new scheduled Instagram post
+// @Summary Criar agendamento de post
+// @Description Cria um novo post agendado para o Instagram
+// @Tags instagram
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.CreateInstagramScheduleRequest true "Dados do agendamento"
+// @Success 201 {object} models.InstagramScheduleResponse
+// @Failure 400 {string} string "Invalid request"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Error creating schedule"
+// @Router /admin/instagram/schedules [post]
 func CreateInstagramSchedule(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	orgID := middleware.GetOrgID(r)
@@ -672,6 +746,18 @@ func CreateInstagramSchedule(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListInstagramSchedules lists scheduled posts with pagination and filtering
+// @Summary Listar agendamentos
+// @Description Lista posts agendados com paginação e filtros
+// @Tags instagram
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "Página (padrão 1)"
+// @Param limit query int false "Itens por página (padrão 10, máx 50)"
+// @Param status query string false "Filtrar por status"
+// @Success 200 {object} models.InstagramScheduleListResponse
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Error fetching schedules"
+// @Router /admin/instagram/schedules [get]
 func ListInstagramSchedules(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 
@@ -731,6 +817,17 @@ func ListInstagramSchedules(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetInstagramSchedule returns a single schedule by ID
+// @Summary Obter agendamento por ID
+// @Description Retorna um agendamento específico pelo ID
+// @Tags instagram
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID do agendamento"
+// @Success 200 {object} models.InstagramScheduleResponse
+// @Failure 400 {string} string "Invalid schedule ID"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Schedule not found"
+// @Router /admin/instagram/schedules/{id} [get]
 func GetInstagramSchedule(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 
@@ -755,6 +852,20 @@ func GetInstagramSchedule(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateInstagramSchedule updates a scheduled post (only if status is "scheduled")
+// @Summary Atualizar agendamento
+// @Description Atualiza um post agendado (apenas se status for "scheduled" ou "failed")
+// @Tags instagram
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID do agendamento"
+// @Param body body models.UpdateInstagramScheduleRequest true "Dados para atualizar"
+// @Success 200 {object} models.InstagramScheduleResponse
+// @Failure 400 {string} string "Invalid request"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Schedule not found"
+// @Failure 500 {string} string "Error updating schedule"
+// @Router /admin/instagram/schedules/{id} [put]
 func UpdateInstagramSchedule(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 
@@ -858,6 +969,18 @@ func UpdateInstagramSchedule(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteInstagramSchedule deletes a scheduled post
+// @Summary Remover agendamento
+// @Description Remove um post agendado
+// @Tags instagram
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID do agendamento"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Cannot delete publishing post"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Schedule not found"
+// @Failure 500 {string} string "Error deleting schedule"
+// @Router /admin/instagram/schedules/{id} [delete]
 func DeleteInstagramSchedule(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 
@@ -897,6 +1020,19 @@ func DeleteInstagramSchedule(w http.ResponseWriter, r *http.Request) {
 }
 
 // UploadInstagramImage uploads an image for Instagram, resized to max 1080x1080
+// @Summary Upload de imagem para Instagram
+// @Description Faz upload de imagem redimensionada para max 1080px (JPEG, PNG, WebP)
+// @Tags instagram
+// @Accept multipart/form-data
+// @Produce json
+// @Security BearerAuth
+// @Param image formData file true "Arquivo de imagem (max 10MB)"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Invalid image"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 413 {string} string "Image too large"
+// @Failure 500 {string} string "Error saving image"
+// @Router /admin/instagram/upload [post]
 func UploadInstagramImage(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	orgID := middleware.GetOrgID(r)
@@ -1373,6 +1509,15 @@ func crosspostToFacebook(schedule models.InstagramSchedule) (string, error) {
 
 // ListAllOrgInstagramProfiles returns IG profiles across all orgs the user belongs to.
 // Auth-only (no org context needed). Only reads from DB — no Meta API calls.
+// @Summary Listar perfis Instagram de todas as organizações
+// @Description Retorna perfis Instagram de todas as orgs que o usuário pertence (somente DB)
+// @Tags instagram
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Error listing memberships"
+// @Router /admin/instagram/all-profiles [get]
 func ListAllOrgInstagramProfiles(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	if userID == primitive.NilObjectID {

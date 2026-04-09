@@ -29,6 +29,7 @@ type Config struct {
 	AsaasAPIKey         string
 	AsaasSandbox        bool
 	AsaasWebhookToken   string
+	ContabilAPIURL      string
 }
 
 var cfg *Config
@@ -69,6 +70,7 @@ func Load() *Config {
 		AsaasAPIKey:        getEnv("ASAAS_API_KEY", ""),
 		AsaasSandbox:       getEnv("ASAAS_SANDBOX", "true") == "true",
 		AsaasWebhookToken:  getEnv("ASAAS_WEBHOOK_TOKEN", ""),
+		ContabilAPIURL:     getEnv("CONTABIL_API_URL", "http://localhost:8089"),
 	}
 
 	return cfg

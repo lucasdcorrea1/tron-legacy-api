@@ -18,10 +18,43 @@ type Organization struct {
 	UpdatedAt   time.Time          `json:"updated_at" bson:"updated_at"`
 }
 
+// BrandColors holds the custom color palette for an organization.
+type BrandColors struct {
+	// Core
+	PrimaryColor string `json:"primary_color,omitempty" bson:"primary_color,omitempty"` // Main accent hex
+	// Sidebar
+	SidebarStart string `json:"sidebar_start,omitempty" bson:"sidebar_start,omitempty"` // Sidebar gradient start hex
+	SidebarEnd   string `json:"sidebar_end,omitempty" bson:"sidebar_end,omitempty"`     // Sidebar gradient end hex
+	// Backgrounds
+	BgColor      string `json:"bg_color,omitempty" bson:"bg_color,omitempty"`           // Main background
+	BgElevated   string `json:"bg_elevated,omitempty" bson:"bg_elevated,omitempty"`     // Cards, elevated surfaces
+	// Text
+	TextColor    string `json:"text_color,omitempty" bson:"text_color,omitempty"`       // Primary text
+	TextHeading  string `json:"text_heading,omitempty" bson:"text_heading,omitempty"`   // Headings
+	// Status
+	SuccessColor string `json:"success_color,omitempty" bson:"success_color,omitempty"` // Success states
+	DangerColor  string `json:"danger_color,omitempty" bson:"danger_color,omitempty"`   // Danger/error states
+	WarningColor string `json:"warning_color,omitempty" bson:"warning_color,omitempty"` // Warning states
+}
+
+// SidebarDisplay controls what appears in the sidebar header.
+// Valid values: "platform" (default W/whodo), "logo", "name", "logo_and_name"
+type SidebarDisplay string
+
+const (
+	SidebarDisplayPlatform    SidebarDisplay = "platform"
+	SidebarDisplayLogo        SidebarDisplay = "logo"
+	SidebarDisplayName        SidebarDisplay = "name"
+	SidebarDisplayLogoAndName SidebarDisplay = "logo_and_name"
+)
+
 // OrgSettings holds organization-level preferences.
 type OrgSettings struct {
-	DefaultLanguage string `json:"default_language,omitempty" bson:"default_language,omitempty"`
-	DefaultCurrency string `json:"default_currency,omitempty" bson:"default_currency,omitempty"`
+	DefaultLanguage  string         `json:"default_language,omitempty" bson:"default_language,omitempty"`
+	DefaultCurrency  string         `json:"default_currency,omitempty" bson:"default_currency,omitempty"`
+	BrandColorsDark  *BrandColors   `json:"brand_colors_dark,omitempty" bson:"brand_colors_dark,omitempty"`
+	BrandColorsLight *BrandColors   `json:"brand_colors_light,omitempty" bson:"brand_colors_light,omitempty"`
+	SidebarDisplay   SidebarDisplay `json:"sidebar_display,omitempty" bson:"sidebar_display,omitempty"`
 }
 
 // OrgMembership links a user to an organization with a role.
@@ -150,6 +183,10 @@ var AllPermissions = []string{
 	"blog:manage",
 	"email:manage",
 	"ai:generate",
+	"contabil:access",
+	"contabil:manage",
+	"contabil:admin",
+	"contabil:import",
 }
 
 // ValidPermission checks if a permission string is valid.

@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -49,6 +50,9 @@ func Auth(next http.Handler) http.Handler {
 		// Parse and validate token
 		claims := &Claims{}
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
 			return []byte(config.Get().JWTSecret), nil
 		})
 
@@ -96,6 +100,9 @@ func OptionalAuth(next http.Handler) http.Handler {
 
 		claims := &Claims{}
 		token, err := jwt.ParseWithClaims(parts[1], claims, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
 			return []byte(config.Get().JWTSecret), nil
 		})
 		if err != nil || !token.Valid {

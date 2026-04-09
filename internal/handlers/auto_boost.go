@@ -22,6 +22,15 @@ import (
 // AUTO-BOOST RULES CRUD
 // ══════════════════════════════════════════════════════════════════════
 
+// @Summary Listar regras de auto-boost
+// @Description Retorna todas as regras de auto-boost da organização
+// @Tags auto-boost
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {array} models.AutoBoostRule
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Error listing rules"
+// @Router /admin/auto-boost/rules [get]
 func ListAutoBoostRules(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 	if orgID == primitive.NilObjectID {
@@ -55,6 +64,18 @@ func ListAutoBoostRules(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(rules)
 }
 
+// @Summary Criar regra de auto-boost
+// @Description Cria uma nova regra de auto-boost para promover posts automaticamente
+// @Tags auto-boost
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.CreateAutoBoostRuleRequest true "Dados da regra"
+// @Success 201 {object} models.AutoBoostRule
+// @Failure 400 {string} string "Dados inválidos"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Error creating rule"
+// @Router /admin/auto-boost/rules [post]
 func CreateAutoBoostRule(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	orgID := middleware.GetOrgID(r)
@@ -146,6 +167,17 @@ func CreateAutoBoostRule(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(rule)
 }
 
+// @Summary Obter regra de auto-boost
+// @Description Retorna uma regra de auto-boost pelo ID
+// @Tags auto-boost
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Rule ID"
+// @Success 200 {object} models.AutoBoostRule
+// @Failure 400 {string} string "Invalid ID"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Rule not found"
+// @Router /admin/auto-boost/rules/{id} [get]
 func GetAutoBoostRule(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 	if orgID == primitive.NilObjectID {
@@ -172,6 +204,20 @@ func GetAutoBoostRule(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(rule)
 }
 
+// @Summary Atualizar regra de auto-boost
+// @Description Atualiza campos de uma regra de auto-boost existente
+// @Tags auto-boost
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Rule ID"
+// @Param body body models.UpdateAutoBoostRuleRequest true "Dados para atualização"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Dados inválidos"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Rule not found"
+// @Failure 500 {string} string "Error updating rule"
+// @Router /admin/auto-boost/rules/{id} [put]
 func UpdateAutoBoostRule(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 	if orgID == primitive.NilObjectID {
@@ -261,6 +307,20 @@ func UpdateAutoBoostRule(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"message": "Rule updated"})
 }
 
+// @Summary Ativar/desativar regra de auto-boost
+// @Description Alterna o estado ativo/inativo de uma regra de auto-boost
+// @Tags auto-boost
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Rule ID"
+// @Param body body object true "Campo active (bool)"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {string} string "active field is required"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Rule not found"
+// @Failure 500 {string} string "Error toggling rule"
+// @Router /admin/auto-boost/rules/{id} [patch]
 func ToggleAutoBoostRule(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 	if orgID == primitive.NilObjectID {
@@ -303,6 +363,18 @@ func ToggleAutoBoostRule(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{"message": "Rule toggled", "active": *req.Active})
 }
 
+// @Summary Deletar regra de auto-boost
+// @Description Remove uma regra de auto-boost
+// @Tags auto-boost
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Rule ID"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Invalid ID"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "Rule not found"
+// @Failure 500 {string} string "Error deleting rule"
+// @Router /admin/auto-boost/rules/{id} [delete]
 func DeleteAutoBoostRule(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 	if orgID == primitive.NilObjectID {
@@ -337,6 +409,18 @@ func DeleteAutoBoostRule(w http.ResponseWriter, r *http.Request) {
 // AUTO-BOOST LOGS
 // ══════════════════════════════════════════════════════════════════════
 
+// @Summary Listar logs de auto-boost
+// @Description Retorna logs de execução do auto-boost com filtros opcionais
+// @Tags auto-boost
+// @Produce json
+// @Security BearerAuth
+// @Param rule_id query string false "Filtrar por rule ID"
+// @Param status query string false "Filtrar por status"
+// @Param limit query int false "Limite de resultados (padrão 50, máx 200)"
+// @Success 200 {array} models.AutoBoostLog
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 500 {string} string "Error listing logs"
+// @Router /admin/auto-boost/logs [get]
 func ListAutoBoostLogs(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 	if orgID == primitive.NilObjectID {

@@ -128,7 +128,8 @@ func UpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 	result, err := database.Profiles().UpdateOne(ctx, bson.M{"user_id": userID}, update)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("profile_db_error", "error", err)
+		http.Error(w, "Erro interno do servidor", http.StatusInternalServerError)
 		return
 	}
 
@@ -237,7 +238,8 @@ func UploadAvatar(w http.ResponseWriter, r *http.Request) {
 
 	result, err := database.Profiles().UpdateOne(ctx, bson.M{"user_id": userID}, update)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("profile_db_error", "error", err)
+		http.Error(w, "Erro interno do servidor", http.StatusInternalServerError)
 		return
 	}
 
@@ -404,7 +406,19 @@ func rotate90CCW(img image.Image, newW, newH int) image.Image {
 	return dst
 }
 
-// UploadCoverImage handles cover image upload for user profiles
+// UploadCoverImage godoc
+// @Summary Upload de imagem de capa
+// @Description Faz upload de uma imagem de capa para o perfil do usuário. A imagem é redimensionada para 1200x400 e comprimida.
+// @Tags profile
+// @Accept multipart/form-data
+// @Produce json
+// @Security BearerAuth
+// @Param cover_image formData file true "Imagem de capa (PNG ou JPEG, max 10MB)"
+// @Success 200 {object} models.Profile
+// @Failure 400 {string} string "Invalid image"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 413 {string} string "Image too large"
+// @Router /profile/cover-image [post]
 func UploadCoverImage(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	if userID == primitive.NilObjectID {
@@ -470,7 +484,8 @@ func UploadCoverImage(w http.ResponseWriter, r *http.Request) {
 
 	result, err := database.Profiles().UpdateOne(ctx, bson.M{"user_id": userID}, update)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("profile_db_error", "error", err)
+		http.Error(w, "Erro interno do servidor", http.StatusInternalServerError)
 		return
 	}
 

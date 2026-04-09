@@ -18,7 +18,15 @@ import (
 )
 
 // GetAutoReplyAnalytics returns aggregated metrics for auto-reply.
-// GET /api/v1/admin/instagram/analytics/autoreply?days=30
+// @Summary Obter analytics de auto-resposta
+// @Description Retorna métricas agregadas de auto-resposta (enviadas, falhas, taxa de sucesso, etc.)
+// @Tags instagram-analytics
+// @Produce json
+// @Security BearerAuth
+// @Param days query int false "Período em dias (padrão 30, máx 365)"
+// @Success 200 {object} models.AutoReplyAnalytics
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/instagram/analytics/autoreply [get]
 func GetAutoReplyAnalytics(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 
@@ -189,7 +197,15 @@ func aggregateTopKeywords(ctx context.Context, since time.Time, orgID primitive.
 }
 
 // GetEngagementReport fetches engagement data from the Instagram Graph API.
-// GET /api/v1/admin/instagram/analytics/engagement
+// @Summary Obter relatório de engajamento
+// @Description Busca dados de engajamento da API do Instagram (likes, comentários, taxa de engajamento)
+// @Tags instagram-analytics
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} models.EngagementReport
+// @Failure 400 {string} string "Instagram not configured"
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/instagram/analytics/engagement [get]
 func GetEngagementReport(w http.ResponseWriter, r *http.Request) {
 	_, creds, ok := requireInstagramCreds(w, r)
 	if !ok {

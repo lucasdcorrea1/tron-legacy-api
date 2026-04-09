@@ -11,18 +11,11 @@ services:
       - MONGO_URI=mongodb://mongo:27017/tron_legacy
       - REDIS_URL=redis://redis:6379
       - PORT=8080
-      - ENCRYPTION_KEY=c123deb9b8834ff620ed1219f0a5df365ec80c34470139b96b5273f1125c078c
-      - ACCESS_TOKEN_EXPIRY=15m
-      - REFRESH_TOKEN_EXPIRY=720h
-      - META_APP_ID=${META_APP_ID:-}
-      - META_APP_SECRET=${META_APP_SECRET:-}
-      - FRONTEND_URL=${FRONTEND_URL:-https://whodo.com.br}
-      - ASAAS_API_KEY=${ASAAS_API_KEY:-}
-      - ASAAS_SANDBOX=${ASAAS_SANDBOX:-true}
-      - ASAAS_WEBHOOK_TOKEN=${ASAAS_WEBHOOK_TOKEN:-}
+      - CONTABIL_API_URL=http://contabil-api:8089
     depends_on:
       - mongo
       - redis
+      - contabil-api
     restart: unless-stopped
     labels:
       - "logging=promtail"
@@ -116,9 +109,42 @@ services:
       - loki
     restart: unless-stopped
 
+  # ==========================================
+  # CONTABIL MODULE
+  # ==========================================
+
+  contabil-api:
+    build:
+      context: ../../whodo.contabil/whodo-contabil-api
+      dockerfile: Dockerfile
+    ports:
+      - "8089:8089"
+    environment:
+      - MONGO_URI=mongodb://contabil-mongo:27017
+      - DB_NAME=whodo_contabil
+      - PORT=8089
+      - JWT_SECRET=${JWT_SECRET:-tron-legacy-dev-secret-change-in-production-2024}
+      - JWT_EXPIRY=168h
+    depends_on:
+      - contabil-mongo
+    restart: unless-stopped
+
+  contabil-mongo:
+    image: mongo:7
+    volumes:
+      - contabil_mongo_data:/data/db
+    ports:
+      - "27020:27017"
+    restart: unless-stopped
+
 volumes:
   mongo_data:
   redis_data:
   prometheus_data:
   loki_data:
   grafana_data:
+  contabil_mongo_data:
+    # Se voce ja tem dados no volume antigo do docker-compose do contabil,
+    # descomente as linhas abaixo e substitua pelo nome real do volume:
+    # external: true
+    # name: whodo-contabil-api_whodo_mongo_data

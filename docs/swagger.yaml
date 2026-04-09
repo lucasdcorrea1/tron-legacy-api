@@ -1,13 +1,875 @@
 basePath: /api/v1
 definitions:
-  models.AuthResponse:
+  handlers.AsaasWebhookEvent:
     properties:
+      event:
+        type: string
+      payment:
+        properties:
+          customer:
+            type: string
+          dueDate:
+            type: string
+          id:
+            type: string
+          status:
+            type: string
+          subscription:
+            type: string
+          value:
+            type: number
+        type: object
+    type: object
+  handlers.CheckoutRequest:
+    properties:
+      billing_cycle:
+        description: '"monthly" or "yearly"'
+        type: string
+      plan_id:
+        type: string
+    type: object
+  handlers.CheckoutResponse:
+    properties:
+      payment_url:
+        type: string
+      subscription:
+        $ref: '#/definitions/models.Subscription'
+    type: object
+  handlers.RegisterAndSubscribeRequest:
+    properties:
+      billing_cycle:
+        description: '"monthly" or "yearly"'
+        type: string
+      email:
+        type: string
+      name:
+        type: string
+      password:
+        type: string
+      plan_id:
+        description: '"starter", "pro", "enterprise"'
+        type: string
+    type: object
+  handlers.RegisterAndSubscribeResponse:
+    properties:
+      payment_url:
+        type: string
+      plan_id:
+        type: string
       profile:
         $ref: '#/definitions/models.Profile'
+      refresh_token:
+        type: string
       token:
         type: string
       user:
         $ref: '#/definitions/models.UserResponse'
+    type: object
+  handlers.broadcastRecord:
+    properties:
+      id:
+        type: string
+      sent_at:
+        type: string
+      status:
+        type: string
+      subject:
+        type: string
+      template_id:
+        type: string
+    type: object
+  handlers.ctaAnalyticsResponse:
+    properties:
+      clicks_today:
+        type: integer
+      clicks_week:
+        type: integer
+      daily_clicks:
+        items:
+          $ref: '#/definitions/handlers.dailyCount'
+        type: array
+      recent_clicks:
+        items:
+          $ref: '#/definitions/handlers.ctaRecentClick'
+        type: array
+      top_posts:
+        items:
+          $ref: '#/definitions/handlers.ctaPostStat'
+        type: array
+      total_clicks:
+        type: integer
+    type: object
+  handlers.ctaPostStat:
+    properties:
+      click_rate:
+        type: string
+      cta_click_count:
+        type: integer
+      slug:
+        type: string
+      title:
+        type: string
+      view_count:
+        type: integer
+    type: object
+  handlers.ctaRecentClick:
+    properties:
+      created_at:
+        type: string
+      cta:
+        type: string
+      ip:
+        type: string
+      post_title:
+        type: string
+      slug:
+        type: string
+    type: object
+  handlers.dailyCount:
+    properties:
+      count:
+        type: integer
+      date:
+        type: string
+    type: object
+  handlers.forgotPasswordRequest:
+    properties:
+      email:
+        type: string
+    type: object
+  handlers.logoutRequest:
+    properties:
+      refresh_token:
+        type: string
+    type: object
+  handlers.previewRequest:
+    properties:
+      button_text:
+        type: string
+      button_url:
+        type: string
+      content:
+        type: string
+      preview_text:
+        type: string
+      subject:
+        type: string
+    type: object
+  handlers.refreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    type: object
+  handlers.resetPasswordRequest:
+    properties:
+      new_password:
+        type: string
+      token:
+        type: string
+    type: object
+  handlers.sendRequest:
+    properties:
+      button_text:
+        type: string
+      button_url:
+        type: string
+      content:
+        type: string
+      preview_text:
+        type: string
+      subject:
+        type: string
+      template_id:
+        type: string
+    type: object
+  handlers.subscribeRequest:
+    properties:
+      email:
+        type: string
+      name:
+        type: string
+    type: object
+  models.AIConfigResponse:
+    properties:
+      configured:
+        type: boolean
+      key_prefix:
+        description: masked key
+        type: string
+      model:
+        type: string
+      provider:
+        type: string
+    type: object
+  models.AIGenerateRequest:
+    properties:
+      context:
+        description: optional user context
+        type: string
+      language:
+        description: default "pt-BR"
+        type: string
+      media_count:
+        description: number of media items
+        type: integer
+      media_type:
+        description: '"image" or "carousel"'
+        type: string
+      type:
+        description: '"caption" or "campaign_name"'
+        type: string
+    type: object
+  models.AIGenerateResponse:
+    properties:
+      campaign_name:
+        type: string
+      text:
+        type: string
+      tokens_used:
+        type: integer
+    type: object
+  models.AdCreative:
+    properties:
+      body:
+        type: string
+      call_to_action:
+        type: string
+      carousel_cards:
+        items:
+          $ref: '#/definitions/models.CarouselCard'
+        type: array
+      description:
+        type: string
+      format:
+        description: '"image", "video", "carousel"'
+        type: string
+      image_hash:
+        type: string
+      image_url:
+        type: string
+      link_url:
+        type: string
+      name:
+        type: string
+      title:
+        type: string
+      video_id:
+        type: string
+    type: object
+  models.AdSetTargeting:
+    properties:
+      age_max:
+        type: integer
+      age_min:
+        type: integer
+      custom_audiences:
+        items:
+          $ref: '#/definitions/models.TargetEntity'
+        type: array
+      device_platforms:
+        items:
+          type: string
+        type: array
+      genders:
+        description: 0=all, 1=male, 2=female
+        items:
+          type: integer
+        type: array
+      geo_locations:
+        $ref: '#/definitions/models.GeoLocation'
+      interests:
+        items:
+          $ref: '#/definitions/models.TargetEntity'
+        type: array
+      locales:
+        items:
+          type: integer
+        type: array
+      publisher_platforms:
+        items:
+          type: string
+        type: array
+    type: object
+  models.AuthResponse:
+    properties:
+      profile:
+        $ref: '#/definitions/models.Profile'
+      refresh_token:
+        type: string
+      token:
+        type: string
+      user:
+        $ref: '#/definitions/models.UserResponse'
+    type: object
+  models.AutoBoostLog:
+    properties:
+      created_at:
+        type: string
+      daily_budget:
+        type: integer
+      duration_days:
+        type: integer
+      error_message:
+        type: string
+      id:
+        type: string
+      ig_caption:
+        type: string
+      ig_media_id:
+        type: string
+      ig_media_type:
+        type: string
+      ig_permalink:
+        type: string
+      meta_ad_id:
+        type: string
+      meta_adset_id:
+        type: string
+      meta_campaign_id:
+        type: string
+      meta_creative_id:
+        type: string
+      metric:
+        type: string
+      metric_value:
+        type: number
+      org_id:
+        type: string
+      rule_id:
+        type: string
+      rule_name:
+        type: string
+      status:
+        description: '"success", "failed", "skipped_cooldown"'
+        type: string
+      threshold:
+        type: number
+      user_id:
+        type: string
+    type: object
+  models.AutoBoostRule:
+    properties:
+      active:
+        type: boolean
+      billing_event:
+        type: string
+      call_to_action:
+        description: Template do criativo
+        type: string
+      cooldown_hours:
+        description: Cooldown — evita boost duplicado
+        type: integer
+      created_at:
+        type: string
+      daily_budget:
+        description: Configuracoes de orcamento
+        type: integer
+      duration_days:
+        type: integer
+      id:
+        type: string
+      link_url:
+        type: string
+      max_post_age_hours:
+        description: Filtro de idade do post
+        type: integer
+      metric:
+        description: 'Metrica monitorada: "likes", "comments", "engagement_rate"'
+        type: string
+      name:
+        type: string
+      objective:
+        description: Objetivo da campanha Meta Ads
+        type: string
+      optimization_goal:
+        type: string
+      org_id:
+        type: string
+      targeting:
+        allOf:
+        - $ref: '#/definitions/models.AdSetTargeting'
+        description: Targeting do ad set
+      threshold:
+        type: number
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  models.AutoReplyAnalytics:
+    properties:
+      daily_trend:
+        items:
+          $ref: '#/definitions/models.DailyTrend'
+        type: array
+      hourly_distribution:
+        items:
+          $ref: '#/definitions/models.HourlyCount'
+        type: array
+      success_rate:
+        type: number
+      top_keywords:
+        items:
+          $ref: '#/definitions/models.KeywordCount'
+        type: array
+      top_rules:
+        items:
+          $ref: '#/definitions/models.RuleCount'
+        type: array
+      total_failed:
+        type: integer
+      total_sent:
+        type: integer
+      total_skipped:
+        type: integer
+    type: object
+  models.AutoReplyLog:
+    properties:
+      comment_reply_sent:
+        type: string
+      created_at:
+        type: string
+      error_message:
+        type: string
+      id:
+        type: string
+      org_id:
+        type: string
+      response_sent:
+        type: string
+      rule_id:
+        type: string
+      rule_name:
+        type: string
+      sender_ig_id:
+        type: string
+      sender_username:
+        type: string
+      status:
+        description: '"sent", "failed", "skipped_cooldown"'
+        type: string
+      trigger_text:
+        type: string
+      trigger_type:
+        description: '"comment" or "dm"'
+        type: string
+    type: object
+  models.AutoReplyLogListResponse:
+    properties:
+      limit:
+        type: integer
+      logs:
+        items:
+          $ref: '#/definitions/models.AutoReplyLog'
+        type: array
+      page:
+        type: integer
+      total:
+        type: integer
+    type: object
+  models.AutoReplyRule:
+    properties:
+      active:
+        type: boolean
+      comment_reply:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      keywords:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      org_id:
+        type: string
+      post_ids:
+        description: limit to specific posts (optional)
+        items:
+          type: string
+        type: array
+      response_message:
+        type: string
+      trigger_type:
+        description: '"comment", "dm", "both"'
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  models.AutoReplyRuleListResponse:
+    properties:
+      rules:
+        items:
+          $ref: '#/definitions/models.AutoReplyRule'
+        type: array
+      total:
+        type: integer
+    type: object
+  models.BudgetAlert:
+    properties:
+      active:
+        type: boolean
+      alert_type:
+        description: '"daily_spend", "total_spend"'
+        type: string
+      campaign_id:
+        description: empty = account-level
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      last_triggered:
+        type: string
+      org_id:
+        type: string
+      threshold:
+        description: in currency
+        type: number
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  models.CTAClickRequest:
+    properties:
+      cta:
+        type: string
+    type: object
+  models.CampaignTemplate:
+    properties:
+      bid_strategy:
+        type: string
+      billing_event:
+        type: string
+      buying_type:
+        type: string
+      created_at:
+        type: string
+      daily_budget:
+        type: integer
+      id:
+        type: string
+      lifetime_budget:
+        type: integer
+      name:
+        type: string
+      objective:
+        type: string
+      optimization_goal:
+        type: string
+      org_id:
+        type: string
+      targeting:
+        $ref: '#/definitions/models.AdSetTargeting'
+      user_id:
+        type: string
+    type: object
+  models.CarouselCard:
+    properties:
+      description:
+        type: string
+      image_hash:
+        type: string
+      image_url:
+        type: string
+      link_url:
+        type: string
+      title:
+        type: string
+    type: object
+  models.CommentListResponse:
+    properties:
+      comments:
+        items:
+          $ref: '#/definitions/models.CommentResponse'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+    type: object
+  models.CommentResponse:
+    properties:
+      author_avatar:
+        type: string
+      author_name:
+        type: string
+      content:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      post_id:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  models.ContabilMappingListResponse:
+    properties:
+      mappings:
+        items:
+          $ref: '#/definitions/models.ContabilMappingResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  models.ContabilMappingResponse:
+    properties:
+      contabil_org_id:
+        type: string
+      contabil_role:
+        description: ADMIN, OPERATOR, VIEWER
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      org_id:
+        type: string
+      tron_email:
+        type: string
+      tron_user_id:
+        type: string
+      updated_at:
+        type: string
+      user_email:
+        type: string
+      user_name:
+        type: string
+    type: object
+  models.ContabilUserMapping:
+    properties:
+      contabil_org_id:
+        type: string
+      contabil_role:
+        description: ADMIN, OPERATOR, VIEWER
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      org_id:
+        type: string
+      tron_email:
+        type: string
+      tron_user_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.CreateAdRequest:
+    properties:
+      adset_id:
+        type: string
+      creative:
+        $ref: '#/definitions/models.AdCreative'
+      name:
+        type: string
+      status:
+        type: string
+    type: object
+  models.CreateAdSetRequest:
+    properties:
+      bid_amount:
+        type: integer
+      billing_event:
+        type: string
+      campaign_id:
+        type: string
+      daily_budget:
+        type: integer
+      end_time:
+        type: string
+      lifetime_budget:
+        type: integer
+      name:
+        type: string
+      optimization_goal:
+        type: string
+      start_time:
+        type: string
+      status:
+        type: string
+      targeting:
+        $ref: '#/definitions/models.AdSetTargeting'
+    type: object
+  models.CreateAutoBoostRuleRequest:
+    properties:
+      billing_event:
+        type: string
+      call_to_action:
+        type: string
+      cooldown_hours:
+        type: integer
+      daily_budget:
+        type: integer
+      duration_days:
+        type: integer
+      link_url:
+        type: string
+      max_post_age_hours:
+        type: integer
+      metric:
+        type: string
+      name:
+        type: string
+      objective:
+        type: string
+      optimization_goal:
+        type: string
+      targeting:
+        $ref: '#/definitions/models.AdSetTargeting'
+      threshold:
+        type: number
+    type: object
+  models.CreateAutoReplyRuleRequest:
+    properties:
+      comment_reply:
+        type: string
+      keywords:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      post_ids:
+        items:
+          type: string
+        type: array
+      response_message:
+        type: string
+      trigger_type:
+        type: string
+    type: object
+  models.CreateBudgetAlertRequest:
+    properties:
+      alert_type:
+        type: string
+      campaign_id:
+        type: string
+      threshold:
+        type: number
+    type: object
+  models.CreateCampaignRequest:
+    properties:
+      bid_strategy:
+        type: string
+      buying_type:
+        type: string
+      daily_budget:
+        type: integer
+      lifetime_budget:
+        type: integer
+      name:
+        type: string
+      objective:
+        type: string
+      special_ad_categories:
+        items:
+          type: string
+        type: array
+      status:
+        type: string
+    type: object
+  models.CreateCampaignTemplateRequest:
+    properties:
+      bid_strategy:
+        type: string
+      billing_event:
+        type: string
+      buying_type:
+        type: string
+      daily_budget:
+        type: integer
+      lifetime_budget:
+        type: integer
+      name:
+        type: string
+      objective:
+        type: string
+      optimization_goal:
+        type: string
+      targeting:
+        $ref: '#/definitions/models.AdSetTargeting'
+    type: object
+  models.CreateCommentRequest:
+    properties:
+      content:
+        type: string
+    type: object
+  models.CreateContabilMappingRequest:
+    properties:
+      contabil_role:
+        type: string
+      tron_user_id:
+        type: string
+    type: object
+  models.CreateFacebookScheduleRequest:
+    properties:
+      image_ids:
+        items:
+          type: string
+        type: array
+      link_url:
+        type: string
+      media_type:
+        type: string
+      message:
+        type: string
+      scheduled_at:
+        description: ISO 8601
+        type: string
+    type: object
+  models.CreateInstagramScheduleRequest:
+    properties:
+      caption:
+        type: string
+      image_ids:
+        items:
+          type: string
+        type: array
+      media_type:
+        type: string
+      post_to_facebook:
+        type: boolean
+      scheduled_at:
+        description: ISO 8601
+        type: string
+    type: object
+  models.CreateIntegratedPublishRequest:
+    properties:
+      campaign:
+        $ref: '#/definitions/models.IntegratedCampaignConfig'
+      caption:
+        type: string
+      image_ids:
+        items:
+          type: string
+        type: array
+      media_type:
+        type: string
+      scheduled_at:
+        description: ISO 8601
+        type: string
+    type: object
+  models.CreateOrgRequest:
+    properties:
+      name:
+        type: string
     type: object
   models.CreatePostRequest:
     properties:
@@ -17,6 +879,11 @@ definitions:
         type: string
       cover_image:
         type: string
+      cover_images:
+        description: array of group_ids
+        items:
+          type: string
+        type: array
       excerpt:
         type: string
       meta_description:
@@ -33,11 +900,563 @@ definitions:
       title:
         type: string
     type: object
+  models.CreateTargetingPresetRequest:
+    properties:
+      name:
+        type: string
+      targeting:
+        $ref: '#/definitions/models.AdSetTargeting'
+    type: object
+  models.DailyTrend:
+    properties:
+      date:
+        type: string
+      failed:
+        type: integer
+      sent:
+        type: integer
+    type: object
+  models.EngagementReport:
+    properties:
+      avg_comments:
+        type: number
+      avg_engagement_rate:
+        type: number
+      avg_likes:
+        type: number
+      best_posting_hours:
+        items:
+          $ref: '#/definitions/models.PostingHourStat'
+        type: array
+      followers_count:
+        type: integer
+      posts:
+        items:
+          $ref: '#/definitions/models.PostEngagement'
+        type: array
+      total_posts:
+        type: integer
+    type: object
+  models.FacebookConfigResponse:
+    properties:
+      configured:
+        type: boolean
+      has_token:
+        type: boolean
+      page_id:
+        type: string
+      page_name:
+        type: string
+      source:
+        description: '"user" or "env"'
+        type: string
+    type: object
+  models.FacebookScheduleListResponse:
+    properties:
+      limit:
+        type: integer
+      page:
+        type: integer
+      schedules:
+        items:
+          $ref: '#/definitions/models.FacebookScheduleResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  models.FacebookScheduleResponse:
+    properties:
+      created_at:
+        type: string
+      error_message:
+        type: string
+      fb_post_id:
+        type: string
+      id:
+        type: string
+      image_ids:
+        description: IDs of images in the images collection
+        items:
+          type: string
+        type: array
+      image_urls:
+        items:
+          type: string
+        type: array
+      link_url:
+        type: string
+      media_type:
+        description: '"text", "image", "carousel", "link"'
+        type: string
+      message:
+        type: string
+      org_id:
+        type: string
+      scheduled_at:
+        type: string
+      status:
+        description: '"scheduled", "publishing", "published", "failed"'
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  models.GeoLocation:
+    properties:
+      cities:
+        items:
+          $ref: '#/definitions/models.LocationEntry'
+        type: array
+      countries:
+        items:
+          type: string
+        type: array
+      regions:
+        items:
+          $ref: '#/definitions/models.LocationEntry'
+        type: array
+    type: object
+  models.HourlyCount:
+    properties:
+      count:
+        type: integer
+      hour:
+        type: integer
+    type: object
+  models.InstagramConfigResponse:
+    properties:
+      account_id:
+        type: string
+      ad_account_id:
+        type: string
+      business_id:
+        type: string
+      configured:
+        type: boolean
+      has_token:
+        type: boolean
+      source:
+        description: '"user" or "env"'
+        type: string
+    type: object
+  models.InstagramLead:
+    properties:
+      created_at:
+        type: string
+      first_interaction:
+        type: string
+      id:
+        type: string
+      interaction_count:
+        type: integer
+      last_interaction:
+        type: string
+      org_id:
+        type: string
+      rules_triggered:
+        description: rule names
+        items:
+          type: string
+        type: array
+      sender_ig_id:
+        type: string
+      sender_username:
+        type: string
+      sources:
+        description: '"comment", "dm"'
+        items:
+          type: string
+        type: array
+      tags:
+        items:
+          type: string
+        type: array
+      updated_at:
+        type: string
+    type: object
+  models.InstagramScheduleListResponse:
+    properties:
+      limit:
+        type: integer
+      page:
+        type: integer
+      schedules:
+        items:
+          $ref: '#/definitions/models.InstagramScheduleResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  models.InstagramScheduleResponse:
+    properties:
+      caption:
+        type: string
+      created_at:
+        type: string
+      error_message:
+        type: string
+      fb_error:
+        type: string
+      fb_post_id:
+        type: string
+      fb_status:
+        description: '"pending", "published", "failed"'
+        type: string
+      id:
+        type: string
+      ig_media_id:
+        type: string
+      image_ids:
+        description: IDs of images in the images collection
+        items:
+          type: string
+        type: array
+      image_urls:
+        items:
+          type: string
+        type: array
+      media_type:
+        description: '"image" or "carousel"'
+        type: string
+      org_id:
+        type: string
+      post_to_facebook:
+        description: Facebook crosspost fields
+        type: boolean
+      scheduled_at:
+        type: string
+      status:
+        description: '"scheduled", "publishing", "published", "failed"'
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  models.IntegratedCampaignConfig:
+    properties:
+      creative:
+        $ref: '#/definitions/models.IntegratedCreativeConfig'
+      daily_budget:
+        description: in cents
+        type: integer
+      duration_days:
+        type: integer
+      name:
+        type: string
+      objective:
+        type: string
+      targeting:
+        $ref: '#/definitions/models.AdSetTargeting'
+    type: object
+  models.IntegratedCreativeConfig:
+    properties:
+      body:
+        type: string
+      call_to_action:
+        type: string
+      link_url:
+        type: string
+      title:
+        type: string
+    type: object
+  models.IntegratedPublishListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/models.IntegratedPublishResponse'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+    type: object
+  models.IntegratedPublishResponse:
+    properties:
+      campaign:
+        allOf:
+        - $ref: '#/definitions/models.IntegratedCampaignConfig'
+        description: Meta Ads campaign config
+      caption:
+        description: Instagram fields
+        type: string
+      created_at:
+        type: string
+      error_message:
+        description: Error tracking
+        type: string
+      error_phase:
+        description: '"ig" or "ads"'
+        type: string
+      id:
+        type: string
+      ig_media_id:
+        description: Instagram result
+        type: string
+      image_ids:
+        items:
+          type: string
+        type: array
+      image_urls:
+        items:
+          type: string
+        type: array
+      media_type:
+        description: '"image" or "carousel"'
+        type: string
+      meta_ad_id:
+        type: string
+      meta_adset_id:
+        type: string
+      meta_campaign_id:
+        description: Meta Ads result
+        type: string
+      org_id:
+        type: string
+      scheduled_at:
+        description: Scheduling
+        type: string
+      status:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  models.InviteMemberRequest:
+    properties:
+      email:
+        type: string
+      org_role:
+        type: string
+      permissions:
+        items:
+          type: string
+        type: array
+    type: object
+  models.KeywordCount:
+    properties:
+      count:
+        type: integer
+      keyword:
+        type: string
+    type: object
+  models.LeadListResponse:
+    properties:
+      leads:
+        items:
+          $ref: '#/definitions/models.InstagramLead'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+    type: object
+  models.LeadStatsResponse:
+    properties:
+      by_source:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      new_this_week:
+        type: integer
+      total:
+        type: integer
+    type: object
+  models.LikeResponse:
+    properties:
+      like_count:
+        type: integer
+      liked:
+        type: boolean
+    type: object
+  models.LocationEntry:
+    properties:
+      key:
+        type: string
+      name:
+        type: string
+    type: object
   models.LoginRequest:
     properties:
       email:
         type: string
       password:
+        type: string
+    type: object
+  models.MemberListResponse:
+    properties:
+      invitations:
+        items:
+          $ref: '#/definitions/models.OrgInvitation'
+        type: array
+      members:
+        items:
+          $ref: '#/definitions/models.MemberResponse'
+        type: array
+    type: object
+  models.MemberResponse:
+    properties:
+      avatar:
+        type: string
+      email:
+        type: string
+      joined_at:
+        type: string
+      name:
+        type: string
+      org_role:
+        type: string
+      permissions:
+        items:
+          type: string
+        type: array
+      user_id:
+        type: string
+    type: object
+  models.OrgInvitation:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: string
+      invited_by:
+        type: string
+      org_id:
+        type: string
+      org_role:
+        type: string
+      permissions:
+        items:
+          type: string
+        type: array
+      status:
+        description: '"pending", "accepted", "expired"'
+        type: string
+      token:
+        type: string
+    type: object
+  models.OrgListResponse:
+    properties:
+      organizations:
+        items:
+          $ref: '#/definitions/models.OrgResponse'
+        type: array
+    type: object
+  models.OrgResponse:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      logo_url:
+        type: string
+      member_count:
+        type: integer
+      my_permissions:
+        items:
+          type: string
+        type: array
+      my_role:
+        type: string
+      name:
+        type: string
+      owner_user_id:
+        type: string
+      settings:
+        $ref: '#/definitions/models.OrgSettings'
+      slug:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.OrgSettings:
+    properties:
+      default_currency:
+        type: string
+      default_language:
+        type: string
+    type: object
+  models.Organization:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      logo_url:
+        type: string
+      name:
+        type: string
+      owner_user_id:
+        type: string
+      settings:
+        $ref: '#/definitions/models.OrgSettings'
+      slug:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.PlanLimits:
+    properties:
+      max_auto_boost_rules:
+        type: integer
+      max_auto_reply_rules:
+        type: integer
+      max_budget_alerts:
+        type: integer
+      max_campaigns:
+        type: integer
+      max_integrated_pubs:
+        type: integer
+      max_members:
+        type: integer
+      max_scheduled_posts:
+        type: integer
+    type: object
+  models.PlanUsage:
+    properties:
+      auto_boost_rules:
+        type: integer
+      auto_reply_rules:
+        type: integer
+      budget_alerts:
+        type: integer
+      campaigns:
+        type: integer
+      integrated_pubs:
+        type: integer
+      members:
+        type: integer
+      scheduled_posts:
+        type: integer
+    type: object
+  models.PostEngagement:
+    properties:
+      caption:
+        type: string
+      comments_count:
+        type: integer
+      engagement_rate:
+        type: number
+      id:
+        type: string
+      like_count:
+        type: integer
+      media_type:
+        type: string
+      media_url:
+        type: string
+      timestamp:
         type: string
     type: object
   models.PostListResponse:
@@ -57,25 +1476,44 @@ definitions:
     properties:
       author_avatar:
         type: string
+      author_bio:
+        type: string
+      author_cover_image:
+        type: string
       author_id:
         type: string
       author_name:
         type: string
+      author_social:
+        $ref: '#/definitions/models.SocialLinks'
       category:
         type: string
+      comment_count:
+        type: integer
       content:
         type: string
       cover_image:
         type: string
+      cover_images:
+        description: array of group_ids for multi-image carousel
+        items:
+          type: string
+        type: array
       created_at:
         type: string
+      cta_click_count:
+        type: integer
       excerpt:
         type: string
       id:
         type: string
+      like_count:
+        type: integer
       meta_description:
         type: string
       meta_title:
+        type: string
+      org_id:
         type: string
       published_at:
         type: string
@@ -93,14 +1531,44 @@ definitions:
         type: array
       title:
         type: string
+      unique_view_count:
+        type: integer
       updated_at:
         type: string
+      view_count:
+        type: integer
+    type: object
+  models.PostStatsResponse:
+    properties:
+      comment_count:
+        type: integer
+      cta_click_count:
+        type: integer
+      like_count:
+        type: integer
+      liked:
+        type: boolean
+      unique_view_count:
+        type: integer
+      view_count:
+        type: integer
+    type: object
+  models.PostingHourStat:
+    properties:
+      avg_engagement:
+        type: number
+      hour:
+        type: integer
+      post_count:
+        type: integer
     type: object
   models.Profile:
     properties:
       avatar:
         type: string
       bio:
+        type: string
+      cover_image:
         type: string
       created_at:
         type: string
@@ -112,6 +1580,8 @@ definitions:
         type: string
       settings:
         $ref: '#/definitions/models.ProfileSettings'
+      social_links:
+        $ref: '#/definitions/models.SocialLinks'
       updated_at:
         type: string
       user_id:
@@ -141,6 +1611,99 @@ definitions:
       password:
         type: string
     type: object
+  models.RuleCount:
+    properties:
+      count:
+        type: integer
+      rule_name:
+        type: string
+    type: object
+  models.SaveAIConfigRequest:
+    properties:
+      api_key:
+        type: string
+      model:
+        type: string
+      provider:
+        description: '"gemini" or "claude", default "gemini"'
+        type: string
+    type: object
+  models.SaveFacebookConfigRequest:
+    properties:
+      page_access_token:
+        type: string
+      page_id:
+        type: string
+    type: object
+  models.SaveInstagramConfigRequest:
+    properties:
+      access_token:
+        type: string
+      ad_account_id:
+        type: string
+      business_id:
+        type: string
+      instagram_account_id:
+        type: string
+    type: object
+  models.SocialLinks:
+    properties:
+      github:
+        type: string
+      instagram:
+        type: string
+      linkedin:
+        type: string
+      twitter:
+        type: string
+      website:
+        type: string
+    type: object
+  models.Subscription:
+    properties:
+      asaas_customer_id:
+        type: string
+      asaas_subscription_id:
+        type: string
+      created_at:
+        type: string
+      current_period_end:
+        type: string
+      id:
+        type: string
+      org_id:
+        type: string
+      plan_id:
+        description: '"free", "starter", "pro", "enterprise"'
+        type: string
+      status:
+        description: '"active", "trialing", "canceled"'
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.TargetEntity:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+    type: object
+  models.TargetingPreset:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      org_id:
+        type: string
+      targeting:
+        $ref: '#/definitions/models.AdSetTargeting'
+      user_id:
+        type: string
+    type: object
   models.ThemeSettings:
     properties:
       accent_color:
@@ -153,6 +1716,173 @@ definitions:
         description: 'Hex color, default: #D4AF37 (gold)'
         type: string
     type: object
+  models.UpdateAdRequest:
+    properties:
+      creative:
+        $ref: '#/definitions/models.AdCreative'
+      name:
+        type: string
+      status:
+        type: string
+    type: object
+  models.UpdateAdSetRequest:
+    properties:
+      bid_amount:
+        type: integer
+      daily_budget:
+        type: integer
+      end_time:
+        type: string
+      lifetime_budget:
+        type: integer
+      name:
+        type: string
+      start_time:
+        type: string
+      status:
+        type: string
+      targeting:
+        $ref: '#/definitions/models.AdSetTargeting'
+    type: object
+  models.UpdateAutoBoostRuleRequest:
+    properties:
+      active:
+        type: boolean
+      billing_event:
+        type: string
+      call_to_action:
+        type: string
+      cooldown_hours:
+        type: integer
+      daily_budget:
+        type: integer
+      duration_days:
+        type: integer
+      link_url:
+        type: string
+      max_post_age_hours:
+        type: integer
+      metric:
+        type: string
+      name:
+        type: string
+      objective:
+        type: string
+      optimization_goal:
+        type: string
+      targeting:
+        $ref: '#/definitions/models.AdSetTargeting'
+      threshold:
+        type: number
+    type: object
+  models.UpdateAutoReplyRuleRequest:
+    properties:
+      comment_reply:
+        type: string
+      keywords:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      post_ids:
+        items:
+          type: string
+        type: array
+      response_message:
+        type: string
+      trigger_type:
+        type: string
+    type: object
+  models.UpdateBudgetAlertRequest:
+    properties:
+      active:
+        type: boolean
+      alert_type:
+        type: string
+      threshold:
+        type: number
+    type: object
+  models.UpdateCampaignRequest:
+    properties:
+      bid_strategy:
+        type: string
+      daily_budget:
+        type: integer
+      lifetime_budget:
+        type: integer
+      name:
+        type: string
+      status:
+        type: string
+    type: object
+  models.UpdateContabilMappingRequest:
+    properties:
+      contabil_role:
+        type: string
+      is_active:
+        type: boolean
+    type: object
+  models.UpdateFacebookScheduleRequest:
+    properties:
+      image_ids:
+        items:
+          type: string
+        type: array
+      link_url:
+        type: string
+      media_type:
+        type: string
+      message:
+        type: string
+      scheduled_at:
+        description: ISO 8601
+        type: string
+    type: object
+  models.UpdateInstagramScheduleRequest:
+    properties:
+      caption:
+        type: string
+      image_ids:
+        items:
+          type: string
+        type: array
+      media_type:
+        type: string
+      post_to_facebook:
+        type: boolean
+      scheduled_at:
+        description: ISO 8601
+        type: string
+    type: object
+  models.UpdateLeadTagsRequest:
+    properties:
+      tags:
+        items:
+          type: string
+        type: array
+    type: object
+  models.UpdateMemberPermissionsRequest:
+    properties:
+      permissions:
+        items:
+          type: string
+        type: array
+    type: object
+  models.UpdateMemberRoleRequest:
+    properties:
+      org_role:
+        type: string
+    type: object
+  models.UpdateOrgRequest:
+    properties:
+      logo_url:
+        type: string
+      name:
+        type: string
+      settings:
+        $ref: '#/definitions/models.OrgSettings'
+    type: object
   models.UpdatePostRequest:
     properties:
       category:
@@ -161,6 +1891,11 @@ definitions:
         type: string
       cover_image:
         type: string
+      cover_images:
+        description: array of group_ids
+        items:
+          type: string
+        type: array
       excerpt:
         type: string
       meta_description:
@@ -186,11 +1921,27 @@ definitions:
         type: string
       settings:
         $ref: '#/definitions/models.ProfileSettings'
+      social_links:
+        $ref: '#/definitions/models.SocialLinks'
+    type: object
+  models.UpdateStatusRequest:
+    properties:
+      status:
+        type: string
     type: object
   models.UpdateUserRoleRequest:
     properties:
       role:
         type: string
+    type: object
+  models.UsageResponse:
+    properties:
+      limits:
+        $ref: '#/definitions/models.PlanLimits'
+      plan_id:
+        type: string
+      usage:
+        $ref: '#/definitions/models.PlanUsage'
     type: object
   models.UserListItem:
     properties:
@@ -236,6 +1987,4637 @@ info:
   title: Tron Legacy API
   version: "1.0"
 paths:
+  /admin/ai/config:
+    delete:
+      description: Remove a configuração de IA da organização atual
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: boolean
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Failed to delete AI config
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Remover configuração de IA
+      tags:
+      - ai
+    get:
+      description: Retorna se a IA está configurada para a organização atual
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.AIConfigResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter configuração de IA
+      tags:
+      - ai
+    put:
+      consumes:
+      - application/json
+      description: Salva ou atualiza a configuração de IA (provider, model, API key)
+        para a organização
+      parameters:
+      - description: Dados da configuração
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.SaveAIConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.AIConfigResponse'
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Failed to save AI config
+          schema:
+            type: string
+        "503":
+          description: Encryption not configured
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Salvar configuração de IA
+      tags:
+      - ai
+  /admin/ai/generate:
+    post:
+      consumes:
+      - application/json
+      description: Gera conteúdo (legenda ou nome de campanha) usando o provider de
+        IA configurado
+      parameters:
+      - description: Dados para geração
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.AIGenerateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.AIGenerateResponse'
+        "400":
+          description: Dados inválidos ou IA não configurada
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Error loading AI config
+          schema:
+            type: string
+        "502":
+          description: Erro da IA
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Gerar conteúdo com IA
+      tags:
+      - ai
+  /admin/auto-boost/logs:
+    get:
+      description: Retorna logs de execução do auto-boost com filtros opcionais
+      parameters:
+      - description: Filtrar por rule ID
+        in: query
+        name: rule_id
+        type: string
+      - description: Filtrar por status
+        in: query
+        name: status
+        type: string
+      - description: Limite de resultados (padrão 50, máx 200)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.AutoBoostLog'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Error listing logs
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar logs de auto-boost
+      tags:
+      - auto-boost
+  /admin/auto-boost/rules:
+    get:
+      description: Retorna todas as regras de auto-boost da organização
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.AutoBoostRule'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Error listing rules
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar regras de auto-boost
+      tags:
+      - auto-boost
+    post:
+      consumes:
+      - application/json
+      description: Cria uma nova regra de auto-boost para promover posts automaticamente
+      parameters:
+      - description: Dados da regra
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateAutoBoostRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.AutoBoostRule'
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Error creating rule
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Criar regra de auto-boost
+      tags:
+      - auto-boost
+  /admin/auto-boost/rules/{id}:
+    delete:
+      description: Remove uma regra de auto-boost
+      parameters:
+      - description: Rule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid ID
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Rule not found
+          schema:
+            type: string
+        "500":
+          description: Error deleting rule
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Deletar regra de auto-boost
+      tags:
+      - auto-boost
+    get:
+      description: Retorna uma regra de auto-boost pelo ID
+      parameters:
+      - description: Rule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.AutoBoostRule'
+        "400":
+          description: Invalid ID
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Rule not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter regra de auto-boost
+      tags:
+      - auto-boost
+    patch:
+      consumes:
+      - application/json
+      description: Alterna o estado ativo/inativo de uma regra de auto-boost
+      parameters:
+      - description: Rule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Campo active (bool)
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: active field is required
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Rule not found
+          schema:
+            type: string
+        "500":
+          description: Error toggling rule
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Ativar/desativar regra de auto-boost
+      tags:
+      - auto-boost
+    put:
+      consumes:
+      - application/json
+      description: Atualiza campos de uma regra de auto-boost existente
+      parameters:
+      - description: Rule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Dados para atualização
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateAutoBoostRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Rule not found
+          schema:
+            type: string
+        "500":
+          description: Error updating rule
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar regra de auto-boost
+      tags:
+      - auto-boost
+  /admin/billing/balance:
+    get:
+      consumes:
+      - application/json
+      description: Retorna o saldo da conta Asaas (somente superusuário)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              format: float64
+              type: number
+            type: object
+        "502":
+          description: Failed to fetch balance from Asaas
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter saldo da conta Asaas
+      tags:
+      - billing
+  /admin/contabil/audit-logs:
+    get:
+      description: 'Proxy: lista os logs de auditoria do sistema contábil'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar logs de auditoria
+      tags:
+      - contabil-proxy
+  /admin/contabil/bills:
+    get:
+      description: 'Proxy: lista todas as cobranças do sistema contábil'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar cobranças
+      tags:
+      - contabil-proxy
+  /admin/contabil/bills/{id}:
+    get:
+      description: 'Proxy: retorna uma cobrança específica pelo ID'
+      parameters:
+      - description: Bill ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not found
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter cobrança
+      tags:
+      - contabil-proxy
+    put:
+      consumes:
+      - application/json
+      description: 'Proxy: atualiza uma cobrança existente'
+      parameters:
+      - description: Bill ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Dados para atualização
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not found
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar cobrança
+      tags:
+      - contabil-proxy
+  /admin/contabil/bills/{id}/paid:
+    patch:
+      description: 'Proxy: marca uma cobrança como paga no sistema contábil'
+      parameters:
+      - description: Bill ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not found
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Marcar cobrança como paga
+      tags:
+      - contabil-proxy
+  /admin/contabil/bills/{id}/status:
+    put:
+      consumes:
+      - application/json
+      description: 'Proxy: atualiza o status de uma cobrança'
+      parameters:
+      - description: Bill ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Novo status
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not found
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar status da cobrança
+      tags:
+      - contabil-proxy
+  /admin/contabil/bills/generate:
+    post:
+      consumes:
+      - application/json
+      description: 'Proxy: gera cobranças para os clientes do sistema contábil'
+      parameters:
+      - description: Parâmetros de geração
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Gerar cobranças
+      tags:
+      - contabil-proxy
+  /admin/contabil/clients:
+    get:
+      description: 'Proxy: lista todos os clientes do sistema contábil'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar clientes contábeis
+      tags:
+      - contabil-proxy
+    post:
+      consumes:
+      - application/json
+      description: 'Proxy: cria um novo cliente no sistema contábil'
+      parameters:
+      - description: Dados do cliente
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            type: object
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Criar cliente contábil
+      tags:
+      - contabil-proxy
+  /admin/contabil/clients/{id}:
+    delete:
+      description: 'Proxy: remove um cliente do sistema contábil'
+      parameters:
+      - description: Client ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not found
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Remover cliente contábil
+      tags:
+      - contabil-proxy
+    get:
+      description: 'Proxy: retorna um cliente específico pelo ID'
+      parameters:
+      - description: Client ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not found
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter cliente contábil
+      tags:
+      - contabil-proxy
+    put:
+      consumes:
+      - application/json
+      description: 'Proxy: atualiza um cliente existente no sistema contábil'
+      parameters:
+      - description: Client ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Dados para atualização
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not found
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar cliente contábil
+      tags:
+      - contabil-proxy
+  /admin/contabil/dashboard/revenue:
+    get:
+      description: 'Proxy: retorna dados de receita do dashboard contábil'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Receita do dashboard contábil
+      tags:
+      - contabil-proxy
+  /admin/contabil/dashboard/summary:
+    get:
+      description: 'Proxy: retorna o resumo financeiro do dashboard contábil'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Resumo do dashboard contábil
+      tags:
+      - contabil-proxy
+  /admin/contabil/import/clients:
+    post:
+      consumes:
+      - application/json
+      description: 'Proxy: importa clientes a partir de arquivo para o sistema contábil'
+      parameters:
+      - description: Dados de importação
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Importar clientes
+      tags:
+      - contabil-proxy
+  /admin/contabil/import/clients/preview:
+    post:
+      consumes:
+      - application/json
+      description: 'Proxy: faz preview da importação de clientes a partir de arquivo'
+      parameters:
+      - description: Dados do arquivo para preview
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Preview de importação de clientes
+      tags:
+      - contabil-proxy
+  /admin/contabil/import/services:
+    post:
+      consumes:
+      - application/json
+      description: 'Proxy: importa serviços a partir de arquivo para o sistema contábil'
+      parameters:
+      - description: Dados de importação
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Importar serviços
+      tags:
+      - contabil-proxy
+  /admin/contabil/import/services/preview:
+    post:
+      consumes:
+      - application/json
+      description: 'Proxy: faz preview da importação de serviços a partir de arquivo'
+      parameters:
+      - description: Dados do arquivo para preview
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Preview de importação de serviços
+      tags:
+      - contabil-proxy
+  /admin/contabil/mappings:
+    get:
+      description: Lista todos os mapeamentos de usuários contábeis da organização
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ContabilMappingListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Failed to list contabil mappings
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar mapeamentos contábeis
+      tags:
+      - contabil
+    post:
+      consumes:
+      - application/json
+      description: Cria um novo mapeamento de usuário contábil
+      parameters:
+      - description: Dados do mapeamento
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateContabilMappingRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.ContabilUserMapping'
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: User not found
+          schema:
+            type: string
+        "409":
+          description: Mapping already exists
+          schema:
+            type: string
+        "500":
+          description: Failed to create contabil mapping
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Criar mapeamento contábil
+      tags:
+      - contabil
+  /admin/contabil/mappings/{id}:
+    delete:
+      description: Remove um mapeamento de usuário contábil
+      parameters:
+      - description: Mapping ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid mapping ID
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Mapping not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Remover mapeamento contábil
+      tags:
+      - contabil
+    put:
+      consumes:
+      - application/json
+      description: Atualiza um mapeamento de usuário contábil existente
+      parameters:
+      - description: Mapping ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Dados para atualização
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateContabilMappingRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Mapping not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar mapeamento contábil
+      tags:
+      - contabil
+  /admin/contabil/organizations:
+    get:
+      description: 'Proxy: lista todas as organizações do sistema contábil'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar organizações contábeis
+      tags:
+      - contabil-proxy
+    post:
+      consumes:
+      - application/json
+      description: 'Proxy: cria uma nova organização no sistema contábil'
+      parameters:
+      - description: Dados da organização
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            type: object
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Criar organização contábil
+      tags:
+      - contabil-proxy
+  /admin/contabil/organizations/{id}:
+    delete:
+      description: 'Proxy: remove uma organização do sistema contábil'
+      parameters:
+      - description: Organization ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not found
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Remover organização contábil
+      tags:
+      - contabil-proxy
+    get:
+      description: 'Proxy: retorna uma organização específica pelo ID'
+      parameters:
+      - description: Organization ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not found
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter organização contábil
+      tags:
+      - contabil-proxy
+    put:
+      consumes:
+      - application/json
+      description: 'Proxy: atualiza uma organização existente'
+      parameters:
+      - description: Organization ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Dados para atualização
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not found
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar organização contábil
+      tags:
+      - contabil-proxy
+  /admin/contabil/roles:
+    get:
+      description: 'Proxy: lista os papéis disponíveis no sistema contábil'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar papéis contábeis
+      tags:
+      - contabil-proxy
+  /admin/contabil/roles/{role}/permissions:
+    get:
+      description: 'Proxy: retorna as permissões associadas a um papel contábil'
+      parameters:
+      - description: Role name
+        in: path
+        name: role
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not found
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter permissões de um papel
+      tags:
+      - contabil-proxy
+  /admin/contabil/services:
+    get:
+      description: 'Proxy: lista todos os serviços cadastrados no sistema contábil'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar serviços contábeis
+      tags:
+      - contabil-proxy
+    post:
+      consumes:
+      - application/json
+      description: 'Proxy: cria um novo serviço no sistema contábil'
+      parameters:
+      - description: Dados do serviço
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            type: object
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Criar serviço contábil
+      tags:
+      - contabil-proxy
+  /admin/contabil/services/{id}:
+    delete:
+      description: 'Proxy: remove um serviço do sistema contábil'
+      parameters:
+      - description: Service ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not found
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Remover serviço contábil
+      tags:
+      - contabil-proxy
+    put:
+      consumes:
+      - application/json
+      description: 'Proxy: atualiza um serviço existente'
+      parameters:
+      - description: Service ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Dados para atualização
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not found
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar serviço contábil
+      tags:
+      - contabil-proxy
+  /admin/contabil/users:
+    get:
+      description: 'Proxy: lista todos os usuários do sistema contábil'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar usuários contábeis
+      tags:
+      - contabil-proxy
+    post:
+      consumes:
+      - application/json
+      description: 'Proxy: cria um novo usuário no sistema contábil'
+      parameters:
+      - description: Dados do usuário
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            type: object
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Criar usuário contábil
+      tags:
+      - contabil-proxy
+  /admin/contabil/users/{id}:
+    get:
+      description: 'Proxy: retorna um usuário específico pelo ID'
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not found
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter usuário contábil
+      tags:
+      - contabil-proxy
+    put:
+      consumes:
+      - application/json
+      description: 'Proxy: atualiza um usuário existente no sistema contábil'
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Dados para atualização
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not found
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar usuário contábil
+      tags:
+      - contabil-proxy
+  /admin/contabil/users/{id}/toggle-active:
+    patch:
+      description: 'Proxy: alterna o status ativo/inativo de um usuário contábil'
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not found
+          schema:
+            type: string
+        "502":
+          description: Contabil service unavailable
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Ativar/desativar usuário contábil
+      tags:
+      - contabil-proxy
+  /admin/cta-analytics:
+    get:
+      description: Retorna estatísticas de cliques em CTA para o dashboard admin
+      parameters:
+      - description: Período em dias (padrão 30, máx 365)
+        in: query
+        name: days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.ctaAnalyticsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter analytics de CTA
+      tags:
+      - analytics
+  /admin/email-marketing/audience:
+    get:
+      description: Retorna estatísticas da audiência do Resend
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Resend não configurado
+          schema:
+            type: string
+        "502":
+          description: Erro ao consultar audiência
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter audiência de email
+      tags:
+      - email-marketing
+  /admin/email-marketing/broadcasts:
+    get:
+      description: Retorna o histórico de broadcasts enviados em ordem cronológica
+        reversa
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar broadcasts
+      tags:
+      - email-marketing
+  /admin/email-marketing/broadcasts/{id}:
+    get:
+      description: Retorna detalhes de um broadcast específico
+      parameters:
+      - description: Broadcast ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.broadcastRecord'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Broadcast não encontrado
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter broadcast por ID
+      tags:
+      - email-marketing
+  /admin/email-marketing/send:
+    post:
+      consumes:
+      - application/json
+      description: Cria e envia um broadcast via Resend para toda a audiência
+      parameters:
+      - description: Dados do email
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.sendRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Resend não configurado
+          schema:
+            type: string
+        "502":
+          description: Erro ao enviar email
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Enviar email marketing
+      tags:
+      - email-marketing
+  /admin/email-marketing/subscribers:
+    get:
+      description: Retorna a lista de contatos da audiência do Resend
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Resend não configurado
+          schema:
+            type: string
+        "502":
+          description: Erro ao consultar inscritos
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar inscritos
+      tags:
+      - email-marketing
+  /admin/email-marketing/subscribers/{id}:
+    delete:
+      description: Remove um contato da audiência do Resend
+      parameters:
+      - description: Contact ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: ID do contato é obrigatório
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Resend não configurado
+          schema:
+            type: string
+        "502":
+          description: Erro ao remover inscrito
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Remover inscrito
+      tags:
+      - email-marketing
+  /admin/email-marketing/templates:
+    get:
+      description: Retorna os templates de email marketing disponíveis
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar templates de email
+      tags:
+      - email-marketing
+  /admin/email-marketing/templates/{id}/preview:
+    post:
+      consumes:
+      - application/json
+      description: Gera um preview HTML para o template especificado
+      parameters:
+      - description: Template ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Dados do preview
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.previewRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Template não encontrado
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Pré-visualizar template de email
+      tags:
+      - email-marketing
+  /admin/facebook/config:
+    delete:
+      description: Remove as credenciais do Facebook da organização
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Organization context required
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: No config found
+          schema:
+            type: string
+        "500":
+          description: Error deleting config
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Remover configuração do Facebook
+      tags:
+      - facebook
+    get:
+      description: Retorna se o Facebook está configurado para a organização atual
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.FacebookConfigResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Error checking config
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter configuração do Facebook
+      tags:
+      - facebook
+    put:
+      consumes:
+      - application/json
+      description: Salva ou atualiza credenciais da página do Facebook para a organização
+      parameters:
+      - description: Dados da configuração
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.SaveFacebookConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Error saving config
+          schema:
+            type: string
+        "503":
+          description: Encryption not configured
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Salvar configuração do Facebook
+      tags:
+      - facebook
+  /admin/facebook/feed:
+    get:
+      description: Busca posts recentes da página do Facebook
+      parameters:
+      - description: Número de posts (padrão 12)
+        in: query
+        name: limit
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Facebook not configured
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "502":
+          description: Failed to reach Facebook API
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter feed do Facebook
+      tags:
+      - facebook
+  /admin/facebook/pages:
+    get:
+      description: Retorna todas as páginas do Facebook acessíveis via token armazenado
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Instagram not configured
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Error decrypting token
+          schema:
+            type: string
+        "502":
+          description: Error fetching Facebook pages
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar páginas do Facebook
+      tags:
+      - facebook
+  /admin/facebook/schedules:
+    get:
+      description: Lista posts agendados com paginação e filtro por status
+      parameters:
+      - description: Página (padrão 1)
+        in: query
+        name: page
+        type: integer
+      - description: Itens por página (padrão 10, máx 50)
+        in: query
+        name: limit
+        type: integer
+      - description: Filtrar por status
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.FacebookScheduleListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Error fetching schedules
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar agendamentos do Facebook
+      tags:
+      - facebook
+    post:
+      consumes:
+      - application/json
+      description: Cria um novo post agendado para a página do Facebook
+      parameters:
+      - description: Dados do agendamento
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateFacebookScheduleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.FacebookScheduleResponse'
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Error creating schedule
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Criar agendamento de post no Facebook
+      tags:
+      - facebook
+  /admin/facebook/schedules/{id}:
+    delete:
+      description: Remove um post agendado (não pode deletar posts em publicação)
+      parameters:
+      - description: Schedule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Cannot delete a post that is currently publishing
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Schedule not found
+          schema:
+            type: string
+        "500":
+          description: Error deleting schedule
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Deletar agendamento do Facebook
+      tags:
+      - facebook
+    get:
+      description: Retorna um agendamento específico pelo ID
+      parameters:
+      - description: Schedule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.FacebookScheduleResponse'
+        "400":
+          description: Invalid schedule ID
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Schedule not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter agendamento do Facebook
+      tags:
+      - facebook
+    put:
+      consumes:
+      - application/json
+      description: Atualiza um post agendado (somente se status for "scheduled" ou
+        "failed")
+      parameters:
+      - description: Schedule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Dados para atualização
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateFacebookScheduleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.FacebookScheduleResponse'
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Schedule not found
+          schema:
+            type: string
+        "500":
+          description: Error updating schedule
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar agendamento do Facebook
+      tags:
+      - facebook
+  /admin/facebook/test:
+    get:
+      description: Verifica as credenciais buscando informações da página
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Facebook not configured
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "502":
+          description: Failed to reach Facebook API
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Testar conexão com Facebook
+      tags:
+      - facebook
+  /admin/facebook/upload:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Faz upload de uma imagem para uso em posts do Facebook (máx 10MB)
+      parameters:
+      - description: Arquivo de imagem
+        in: formData
+        name: image
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: No image provided
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "413":
+          description: Image too large
+          schema:
+            type: string
+        "500":
+          description: Error saving image
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Upload de imagem para Facebook
+      tags:
+      - facebook
+  /admin/instagram/accounts:
+    get:
+      description: Retorna todas as contas Instagram Business acessíveis pelo token
+        armazenado
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Instagram not configured
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar contas Instagram vinculadas
+      tags:
+      - instagram
+  /admin/instagram/all-profiles:
+    get:
+      description: Retorna perfis Instagram de todas as orgs que o usuário pertence
+        (somente DB)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Error listing memberships
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar perfis Instagram de todas as organizações
+      tags:
+      - instagram
+  /admin/instagram/analytics/autoreply:
+    get:
+      description: Retorna métricas agregadas de auto-resposta (enviadas, falhas,
+        taxa de sucesso, etc.)
+      parameters:
+      - description: Período em dias (padrão 30, máx 365)
+        in: query
+        name: days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.AutoReplyAnalytics'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter analytics de auto-resposta
+      tags:
+      - instagram-analytics
+  /admin/instagram/analytics/engagement:
+    get:
+      description: Busca dados de engajamento da API do Instagram (likes, comentários,
+        taxa de engajamento)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.EngagementReport'
+        "400":
+          description: Instagram not configured
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter relatório de engajamento
+      tags:
+      - instagram-analytics
+  /admin/instagram/autoreply/live:
+    get:
+      description: Transmite eventos de webhook em tempo real via Server-Sent Events
+        (autenticação via query param token)
+      parameters:
+      - description: JWT token para autenticação
+        in: query
+        name: token
+        required: true
+        type: string
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: Event stream
+          schema:
+            type: string
+        "401":
+          description: Token required or invalid
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+      summary: Stream de eventos de auto-resposta (SSE)
+      tags:
+      - instagram-autoreply
+  /admin/instagram/autoreply/logs:
+    get:
+      description: Lista logs de auto-resposta com paginação e filtros opcionais
+      parameters:
+      - description: Página (padrão 1)
+        in: query
+        name: page
+        type: integer
+      - description: Itens por página (padrão 20, máx 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Filtrar por status
+        in: query
+        name: status
+        type: string
+      - description: Filtrar por ID da regra
+        in: query
+        name: rule_id
+        type: string
+      - description: Filtrar por tipo de trigger
+        in: query
+        name: trigger_type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.AutoReplyLogListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Erro ao listar logs
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar logs de auto-resposta
+      tags:
+      - instagram-autoreply
+  /admin/instagram/autoreply/rules:
+    get:
+      description: Lista todas as regras de auto-resposta da organização
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.AutoReplyRuleListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Erro ao listar regras
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar regras de auto-resposta
+      tags:
+      - instagram-autoreply
+    post:
+      consumes:
+      - application/json
+      description: Cria uma nova regra de auto-resposta para Instagram
+      parameters:
+      - description: Dados da regra
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateAutoReplyRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.AutoReplyRule'
+        "400":
+          description: Invalid request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Erro ao criar regra
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Criar regra de auto-resposta
+      tags:
+      - instagram-autoreply
+  /admin/instagram/autoreply/rules/{id}:
+    delete:
+      description: Remove uma regra de auto-resposta
+      parameters:
+      - description: ID da regra
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: ID inválido
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Regra não encontrada
+          schema:
+            type: string
+        "500":
+          description: Erro ao deletar regra
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Remover regra de auto-resposta
+      tags:
+      - instagram-autoreply
+    patch:
+      description: Alterna o estado ativo/inativo de uma regra
+      parameters:
+      - description: ID da regra
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: ID inválido
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Regra não encontrada
+          schema:
+            type: string
+        "500":
+          description: Erro ao alterar regra
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Ativar/desativar regra de auto-resposta
+      tags:
+      - instagram-autoreply
+    put:
+      consumes:
+      - application/json
+      description: Atualiza uma regra de auto-resposta existente
+      parameters:
+      - description: ID da regra
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Dados para atualizar
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateAutoReplyRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.AutoReplyRule'
+        "400":
+          description: Invalid request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Regra não encontrada
+          schema:
+            type: string
+        "500":
+          description: Erro ao atualizar regra
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar regra de auto-resposta
+      tags:
+      - instagram-autoreply
+  /admin/instagram/config:
+    delete:
+      description: Remove as credenciais do Instagram da organização
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Organization context required
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: No config found
+          schema:
+            type: string
+        "500":
+          description: Error deleting config
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Remover configuração do Instagram
+      tags:
+      - instagram
+    get:
+      description: Retorna se o Instagram está configurado e detalhes da configuração
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.InstagramConfigResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Error checking config
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter configuração do Instagram
+      tags:
+      - instagram
+    put:
+      consumes:
+      - application/json
+      description: Salva ou atualiza credenciais do Instagram para a organização
+      parameters:
+      - description: Configuração do Instagram
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.SaveInstagramConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Error saving config
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Salvar configuração do Instagram
+      tags:
+      - instagram
+  /admin/instagram/feed:
+    get:
+      description: Busca mídias recentes da conta Instagram (somente leitura)
+      parameters:
+      - description: Número de itens (padrão 12)
+        in: query
+        name: limit
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Instagram API error
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "502":
+          description: Failed to reach Instagram API
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter feed do Instagram
+      tags:
+      - instagram
+  /admin/instagram/leads:
+    get:
+      description: Retorna lista paginada e filtrável de leads capturados
+      parameters:
+      - description: Página (padrão 1)
+        in: query
+        name: page
+        type: integer
+      - description: Itens por página (padrão 20, máx 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Buscar por username
+        in: query
+        name: search
+        type: string
+      - description: Filtrar por tag
+        in: query
+        name: tag
+        type: string
+      - description: Filtrar por fonte
+        in: query
+        name: source
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.LeadListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Erro ao buscar leads
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar leads do Instagram
+      tags:
+      - instagram-leads
+  /admin/instagram/leads/{id}/tags:
+    put:
+      consumes:
+      - application/json
+      description: Atualiza as tags de um lead específico
+      parameters:
+      - description: ID do lead
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Tags para atualizar
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateLeadTagsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: ID ou JSON inválido
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Lead não encontrado
+          schema:
+            type: string
+        "500":
+          description: Erro ao atualizar tags
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar tags de um lead
+      tags:
+      - instagram-leads
+  /admin/instagram/leads/export:
+    get:
+      description: Exporta todos os leads da organização em formato CSV
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: Arquivo CSV
+          schema:
+            type: file
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Erro ao buscar leads
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Exportar leads em CSV
+      tags:
+      - instagram-leads
+  /admin/instagram/leads/stats:
+    get:
+      description: Retorna estatísticas resumidas dos leads (total, novos na semana,
+        por fonte)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.LeadStatsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Erro ao contar leads
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter estatísticas de leads
+      tags:
+      - instagram-leads
+  /admin/instagram/schedules:
+    get:
+      description: Lista posts agendados com paginação e filtros
+      parameters:
+      - description: Página (padrão 1)
+        in: query
+        name: page
+        type: integer
+      - description: Itens por página (padrão 10, máx 50)
+        in: query
+        name: limit
+        type: integer
+      - description: Filtrar por status
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.InstagramScheduleListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Error fetching schedules
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar agendamentos
+      tags:
+      - instagram
+    post:
+      consumes:
+      - application/json
+      description: Cria um novo post agendado para o Instagram
+      parameters:
+      - description: Dados do agendamento
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateInstagramScheduleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.InstagramScheduleResponse'
+        "400":
+          description: Invalid request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Error creating schedule
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Criar agendamento de post
+      tags:
+      - instagram
+  /admin/instagram/schedules/{id}:
+    delete:
+      description: Remove um post agendado
+      parameters:
+      - description: ID do agendamento
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Cannot delete publishing post
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Schedule not found
+          schema:
+            type: string
+        "500":
+          description: Error deleting schedule
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Remover agendamento
+      tags:
+      - instagram
+    get:
+      description: Retorna um agendamento específico pelo ID
+      parameters:
+      - description: ID do agendamento
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.InstagramScheduleResponse'
+        "400":
+          description: Invalid schedule ID
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Schedule not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter agendamento por ID
+      tags:
+      - instagram
+    put:
+      consumes:
+      - application/json
+      description: Atualiza um post agendado (apenas se status for "scheduled" ou
+        "failed")
+      parameters:
+      - description: ID do agendamento
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Dados para atualizar
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateInstagramScheduleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.InstagramScheduleResponse'
+        "400":
+          description: Invalid request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Schedule not found
+          schema:
+            type: string
+        "500":
+          description: Error updating schedule
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar agendamento
+      tags:
+      - instagram
+  /admin/instagram/test:
+    get:
+      description: Verifica as credenciais buscando informações da conta (somente
+        leitura)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Instagram API error
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "502":
+          description: Failed to reach Instagram API
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Testar conexão com Instagram
+      tags:
+      - instagram
+  /admin/instagram/upload:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Faz upload de imagem redimensionada para max 1080px (JPEG, PNG,
+        WebP)
+      parameters:
+      - description: Arquivo de imagem (max 10MB)
+        in: formData
+        name: image
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid image
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "413":
+          description: Image too large
+          schema:
+            type: string
+        "500":
+          description: Error saving image
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Upload de imagem para Instagram
+      tags:
+      - instagram
+  /admin/integrated-publish:
+    get:
+      description: Lista publicações integradas com paginação e filtro por status
+      parameters:
+      - description: Página (padrão 1)
+        in: query
+        name: page
+        type: integer
+      - description: Itens por página (padrão 10, máx 50)
+        in: query
+        name: limit
+        type: integer
+      - description: Filtrar por status
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.IntegratedPublishListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Error fetching records
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar publicações integradas
+      tags:
+      - integrated-publish
+    post:
+      consumes:
+      - application/json
+      description: Cria uma publicação integrada (Instagram + Meta Ads) agendada
+      parameters:
+      - description: Dados da publicação
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateIntegratedPublishRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.IntegratedPublishResponse'
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Error creating integrated publish
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Criar publicação integrada
+      tags:
+      - integrated-publish
+  /admin/integrated-publish/{id}:
+    delete:
+      description: Remove uma publicação integrada (não pode deletar durante publicação)
+      parameters:
+      - description: Publish ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Cannot delete while publishing is in progress
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not found
+          schema:
+            type: string
+        "500":
+          description: Error deleting record
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Deletar publicação integrada
+      tags:
+      - integrated-publish
+    get:
+      description: Retorna uma publicação integrada pelo ID
+      parameters:
+      - description: Publish ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.IntegratedPublishResponse'
+        "400":
+          description: Invalid ID
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter publicação integrada
+      tags:
+      - integrated-publish
+    put:
+      consumes:
+      - application/json
+      description: Atualiza data de agendamento ou status de uma publicação integrada
+      parameters:
+      - description: Publish ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Campos para atualização (scheduled_at, status)
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.IntegratedPublishResponse'
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not found
+          schema:
+            type: string
+        "500":
+          description: Error updating record
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar publicação integrada
+      tags:
+      - integrated-publish
+  /admin/meta-ads/account/finance:
+    get:
+      description: Retorna informações financeiras da conta (saldo, gastos, spend
+        cap, etc.)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter dados financeiros da conta
+      tags:
+      - meta-ads
+  /admin/meta-ads/account/recommendations:
+    get:
+      description: Retorna opportunity score e recomendações do Meta para a conta
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter recomendações da conta
+      tags:
+      - meta-ads
+  /admin/meta-ads/accounts:
+    get:
+      description: Lista todas as contas de anúncios do Meta Ads que o token tem acesso
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar contas de anúncios
+      tags:
+      - meta-ads
+  /admin/meta-ads/ads:
+    get:
+      description: Lista anúncios da conta ou de um ad set específico
+      parameters:
+      - description: Filtrar por ad set
+        in: query
+        name: adset_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar anúncios
+      tags:
+      - meta-ads
+    post:
+      consumes:
+      - application/json
+      description: Cria um novo anúncio com creative no Meta Ads
+      parameters:
+      - description: Dados do anúncio
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateAdRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Criar anúncio
+      tags:
+      - meta-ads
+  /admin/meta-ads/ads/{id}:
+    delete:
+      description: Exclui um anúncio do Meta Ads
+      parameters:
+      - description: ID do anúncio no Meta
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Excluir anúncio
+      tags:
+      - meta-ads
+    get:
+      description: Retorna detalhes de um anúncio específico
+      parameters:
+      - description: ID do anúncio no Meta
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter anúncio
+      tags:
+      - meta-ads
+    put:
+      consumes:
+      - application/json
+      description: Atualiza campos de um anúncio existente
+      parameters:
+      - description: ID do anúncio no Meta
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Campos a atualizar
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateAdRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar anúncio
+      tags:
+      - meta-ads
+  /admin/meta-ads/ads/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      description: Atualiza apenas o status de um anúncio (ACTIVE, PAUSED, etc.)
+      parameters:
+      - description: ID do anúncio no Meta
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Novo status
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar status do anúncio
+      tags:
+      - meta-ads
+  /admin/meta-ads/adsets:
+    get:
+      description: Lista conjuntos de anúncios (ad sets) da conta ou de uma campanha
+        específica
+      parameters:
+      - description: Filtrar por campanha
+        in: query
+        name: campaign_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar conjuntos de anúncios
+      tags:
+      - meta-ads
+    post:
+      consumes:
+      - application/json
+      description: Cria um novo conjunto de anúncios (ad set) no Meta Ads
+      parameters:
+      - description: Dados do conjunto de anúncios
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateAdSetRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Criar conjunto de anúncios
+      tags:
+      - meta-ads
+  /admin/meta-ads/adsets/{id}:
+    delete:
+      description: Exclui um conjunto de anúncios do Meta Ads
+      parameters:
+      - description: ID do ad set no Meta
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Excluir conjunto de anúncios
+      tags:
+      - meta-ads
+    get:
+      description: Retorna detalhes de um conjunto de anúncios específico
+      parameters:
+      - description: ID do ad set no Meta
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter conjunto de anúncios
+      tags:
+      - meta-ads
+    put:
+      consumes:
+      - application/json
+      description: Atualiza campos de um conjunto de anúncios existente
+      parameters:
+      - description: ID do ad set no Meta
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Campos a atualizar
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateAdSetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar conjunto de anúncios
+      tags:
+      - meta-ads
+  /admin/meta-ads/adsets/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      description: Atualiza apenas o status de um conjunto de anúncios (ACTIVE, PAUSED,
+        etc.)
+      parameters:
+      - description: ID do ad set no Meta
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Novo status
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar status do conjunto de anúncios
+      tags:
+      - meta-ads
+  /admin/meta-ads/alerts:
+    get:
+      description: Lista alertas de orçamento configurados para a organização
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.BudgetAlert'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar alertas de orçamento
+      tags:
+      - meta-ads
+    post:
+      consumes:
+      - application/json
+      description: Cria um novo alerta de orçamento (daily_spend ou total_spend)
+      parameters:
+      - description: Dados do alerta
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateBudgetAlertRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.BudgetAlert'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Criar alerta de orçamento
+      tags:
+      - meta-ads
+  /admin/meta-ads/alerts/{id}:
+    delete:
+      description: Exclui um alerta de orçamento
+      parameters:
+      - description: ID do alerta
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Excluir alerta de orçamento
+      tags:
+      - meta-ads
+    put:
+      consumes:
+      - application/json
+      description: Atualiza campos de um alerta de orçamento existente
+      parameters:
+      - description: ID do alerta
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Campos a atualizar
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateBudgetAlertRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar alerta de orçamento
+      tags:
+      - meta-ads
+  /admin/meta-ads/campaigns:
+    get:
+      description: Lista campanhas do Meta Ads da conta configurada
+      parameters:
+      - description: Filtrar por status (ACTIVE, PAUSED, etc.)
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar campanhas
+      tags:
+      - meta-ads
+    post:
+      consumes:
+      - application/json
+      description: Cria uma nova campanha no Meta Ads
+      parameters:
+      - description: Dados da campanha
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateCampaignRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Criar campanha
+      tags:
+      - meta-ads
+  /admin/meta-ads/campaigns/{id}:
+    delete:
+      description: Exclui uma campanha do Meta Ads
+      parameters:
+      - description: ID da campanha no Meta
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Excluir campanha
+      tags:
+      - meta-ads
+    get:
+      description: Retorna detalhes de uma campanha específica do Meta Ads
+      parameters:
+      - description: ID da campanha no Meta
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter campanha
+      tags:
+      - meta-ads
+    put:
+      consumes:
+      - application/json
+      description: Atualiza campos de uma campanha existente no Meta Ads
+      parameters:
+      - description: ID da campanha no Meta
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Campos a atualizar
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateCampaignRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar campanha
+      tags:
+      - meta-ads
+  /admin/meta-ads/campaigns/{id}/insights:
+    get:
+      description: Retorna métricas de desempenho de uma campanha específica
+      parameters:
+      - description: ID da campanha no Meta
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Data início (YYYY-MM-DD)
+        in: query
+        name: date_start
+        type: string
+      - description: Data fim (YYYY-MM-DD)
+        in: query
+        name: date_stop
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter insights de campanha
+      tags:
+      - meta-ads
+  /admin/meta-ads/campaigns/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      description: Atualiza apenas o status de uma campanha (ACTIVE, PAUSED, etc.)
+      parameters:
+      - description: ID da campanha no Meta
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Novo status
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar status da campanha
+      tags:
+      - meta-ads
+  /admin/meta-ads/insights:
+    get:
+      description: Retorna métricas de desempenho da conta (impressões, cliques, gastos,
+        etc.)
+      parameters:
+      - default: account
+        description: Nível de agregação (account, campaign, adset, ad)
+        in: query
+        name: level
+        type: string
+      - description: Incremento de tempo (1, 7, 28, monthly, etc.)
+        in: query
+        name: time_increment
+        type: string
+      - description: Data início (YYYY-MM-DD)
+        in: query
+        name: date_start
+        type: string
+      - description: Data fim (YYYY-MM-DD)
+        in: query
+        name: date_stop
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter insights da conta
+      tags:
+      - meta-ads
+  /admin/meta-ads/presets:
+    get:
+      description: Lista presets de segmentação salvos pela organização
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.TargetingPreset'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar presets de targeting
+      tags:
+      - meta-ads
+    post:
+      consumes:
+      - application/json
+      description: Salva um novo preset de segmentação para reutilização
+      parameters:
+      - description: Dados do preset
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateTargetingPresetRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.TargetingPreset'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Criar preset de targeting
+      tags:
+      - meta-ads
+  /admin/meta-ads/presets/{id}:
+    delete:
+      description: Exclui um preset de segmentação salvo
+      parameters:
+      - description: ID do preset
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Excluir preset de targeting
+      tags:
+      - meta-ads
+  /admin/meta-ads/targeting/audiences:
+    get:
+      description: Lista custom audiences da conta de anúncios
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar audiências personalizadas
+      tags:
+      - meta-ads
+  /admin/meta-ads/targeting/interests:
+    get:
+      description: Pesquisa interesses disponíveis para segmentação de anúncios
+      parameters:
+      - description: Termo de busca
+        in: query
+        name: q
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Buscar interesses para targeting
+      tags:
+      - meta-ads
+  /admin/meta-ads/targeting/locations:
+    get:
+      description: Pesquisa localizações geográficas para segmentação de anúncios
+      parameters:
+      - description: Termo de busca
+        in: query
+        name: q
+        required: true
+        type: string
+      - default: adgeolocation
+        description: Tipo de localização (adgeolocation, adcountry, etc.)
+        in: query
+        name: type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Buscar localizações para targeting
+      tags:
+      - meta-ads
+  /admin/meta-ads/templates:
+    get:
+      description: Lista templates de campanha salvos pela organização
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.CampaignTemplate'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar templates de campanha
+      tags:
+      - meta-ads
+    post:
+      consumes:
+      - application/json
+      description: Salva um novo template de campanha para reutilização
+      parameters:
+      - description: Dados do template
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateCampaignTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.CampaignTemplate'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Criar template de campanha
+      tags:
+      - meta-ads
+  /admin/meta-ads/templates/{id}:
+    delete:
+      description: Exclui um template de campanha salvo
+      parameters:
+      - description: ID do template
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Excluir template de campanha
+      tags:
+      - meta-ads
+  /admin/meta-ads/upload/image:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Faz upload de uma imagem para uso em criativos do Meta Ads (max
+        30MB)
+      parameters:
+      - description: Arquivo de imagem
+        in: formData
+        name: image
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "413":
+          description: File too large
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Upload de imagem
+      tags:
+      - meta-ads
+  /admin/meta-ads/upload/video:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Faz upload de um vídeo para uso em criativos do Meta Ads (max 100MB)
+      parameters:
+      - description: Arquivo de vídeo
+        in: formData
+        name: video
+        required: true
+        type: file
+      - description: Título do vídeo
+        in: formData
+        name: title
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "413":
+          description: File too large
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Upload de vídeo
+      tags:
+      - meta-ads
+  /auth/forgot-password:
+    post:
+      consumes:
+      - application/json
+      description: Envia email com link para redefinir a senha via Resend
+      parameters:
+      - description: Email do usuário
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.forgotPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Solicitar recuperação de senha
+      tags:
+      - auth
   /auth/login:
     post:
       consumes:
@@ -266,6 +6648,30 @@ paths:
       summary: Login de usuário
       tags:
       - auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Invalida o refresh token fornecido
+      parameters:
+      - description: Refresh token para invalidar
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.logoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Logout do usuário
+      tags:
+      - auth
   /auth/me:
     get:
       consumes:
@@ -285,6 +6691,113 @@ paths:
       security:
       - BearerAuth: []
       summary: Dados do usuário logado
+      tags:
+      - auth
+  /auth/meta/callback:
+    post:
+      consumes:
+      - application/json
+      description: Troca o código de autorização do Facebook por tokens e busca informações
+        das contas
+      parameters:
+      - description: Código OAuth e ID da organização
+        in: body
+        name: request
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid request body
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "502":
+          description: Falha ao trocar codigo por token
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Callback de autenticação Meta OAuth
+      tags:
+      - auth
+  /auth/meta/url:
+    get:
+      consumes:
+      - application/json
+      description: Retorna a URL de autorização do Facebook OAuth para conectar conta
+        Meta
+      parameters:
+      - description: ID da organização
+        in: query
+        name: org_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: org_id is required
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: META_APP_ID not configured
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter URL de autenticação Meta OAuth
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Troca um refresh token válido por um novo par de access + refresh
+        token
+      parameters:
+      - description: Refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.refreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.AuthResponse'
+        "400":
+          description: refresh_token is required
+          schema:
+            type: string
+        "401":
+          description: Invalid or expired refresh token
+          schema:
+            type: string
+      summary: Renovar tokens de acesso
       tags:
       - auth
   /auth/register:
@@ -317,6 +6830,71 @@ paths:
       summary: Registrar novo usuário
       tags:
       - auth
+  /auth/register-and-subscribe:
+    post:
+      consumes:
+      - application/json
+      description: Cria conta, organização e assinatura em um único passo. Retorna
+        tokens de autenticação e URL de pagamento do Asaas
+      parameters:
+      - description: Dados de registro e plano
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.RegisterAndSubscribeRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.RegisterAndSubscribeResponse'
+        "400":
+          description: Dados inválidos
+          schema:
+            type: string
+        "409":
+          description: Email already exists
+          schema:
+            type: string
+        "502":
+          description: Falha ao criar assinatura no gateway de pagamento
+          schema:
+            type: string
+      summary: Registrar e assinar plano
+      tags:
+      - auth
+  /auth/reset-password:
+    post:
+      consumes:
+      - application/json
+      description: Valida o token e atualiza a senha do usuário
+      parameters:
+      - description: Token e nova senha
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.resetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Redefinir senha
+      tags:
+      - auth
   /blog/images/{id}:
     get:
       description: Retorna a imagem em bytes (JPEG). Público, com cache de 7 dias.
@@ -338,6 +6916,35 @@ paths:
           schema:
             type: string
       summary: Servir imagem do blog
+      tags:
+      - blog
+  /blog/images/group/{groupId}:
+    get:
+      description: 'Retorna a imagem em bytes (JPEG) pelo group_id. Use ?size=thumb|card|banner.
+        Default: card.'
+      parameters:
+      - description: Group ID da imagem
+        in: path
+        name: groupId
+        required: true
+        type: string
+      - default: card
+        description: 'Tamanho: thumb, card, banner'
+        in: query
+        name: size
+        type: string
+      produces:
+      - image/jpeg
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "404":
+          description: Image not found
+          schema:
+            type: string
+      summary: Servir imagem por group_id e tamanho
       tags:
       - blog
   /blog/posts:
@@ -409,8 +7016,8 @@ paths:
       - blog
   /blog/posts/{id}:
     delete:
-      description: Deleta um post. Autores só deletam seus posts, admins deletam qualquer
-        um.
+      description: Deleta um post. Autores só deletam seus posts, apenas superuser
+        deleta qualquer um.
       parameters:
       - description: ID do post
         in: path
@@ -444,8 +7051,8 @@ paths:
     put:
       consumes:
       - application/json
-      description: Atualiza um post existente. Autores só editam seus posts, admins
-        editam qualquer um.
+      description: Atualiza um post existente. Autores só editam seus posts, apenas
+        superuser edita qualquer um.
       parameters:
       - description: ID do post
         in: path
@@ -510,6 +7117,230 @@ paths:
       summary: Buscar post por slug
       tags:
       - blog
+  /blog/posts/{slug}/comments:
+    get:
+      description: Retorna lista paginada de comentários com info do autor
+      parameters:
+      - description: Slug do post
+        in: path
+        name: slug
+        required: true
+        type: string
+      - default: 1
+        description: Página
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Itens por página
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.CommentListResponse'
+        "404":
+          description: Post not found
+          schema:
+            type: string
+      summary: Listar comentários de um post
+      tags:
+      - engagement
+    post:
+      consumes:
+      - application/json
+      description: Cria um novo comentário. Requer autenticação.
+      parameters:
+      - description: Slug do post
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: Conteúdo do comentário
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateCommentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.CommentResponse'
+        "400":
+          description: Invalid request
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Post not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Criar comentário em post
+      tags:
+      - engagement
+  /blog/posts/{slug}/comments/{id}:
+    delete:
+      description: Autor do comentário, autor do post ou admin podem deletar.
+      parameters:
+      - description: Slug do post
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: ID do comentário
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "404":
+          description: Comment not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Deletar comentário
+      tags:
+      - engagement
+  /blog/posts/{slug}/cta-click:
+    post:
+      consumes:
+      - application/json
+      description: Registra um clique em um banner CTA dentro do post.
+      parameters:
+      - description: Slug do post
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: CTA identifier
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CTAClickRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Post not found
+          schema:
+            type: string
+      summary: Registrar clique em CTA
+      tags:
+      - engagement
+  /blog/posts/{slug}/like:
+    post:
+      description: Se já deu like, remove. Se não, adiciona. Requer autenticação.
+      parameters:
+      - description: Slug do post
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.LikeResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Post not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Toggle like/unlike em post
+      tags:
+      - engagement
+  /blog/posts/{slug}/stats:
+    get:
+      description: Retorna view_count, unique_view_count, like_count, comment_count
+        e se o usuário deu like
+      parameters:
+      - description: Slug do post
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PostStatsResponse'
+        "404":
+          description: Post not found
+          schema:
+            type: string
+      summary: Estatísticas de engajamento do post
+      tags:
+      - engagement
+  /blog/posts/{slug}/view:
+    post:
+      description: Incrementa view_count. Se autenticado, também registra view única.
+      parameters:
+      - description: Slug do post
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Post not found
+          schema:
+            type: string
+      summary: Registrar visualização de post
+      tags:
+      - engagement
   /blog/posts/me:
     get:
       description: Retorna todos os posts do autor autenticado (rascunhos + publicados)
@@ -578,6 +7409,690 @@ paths:
       summary: Upload de imagem para post
       tags:
       - blog
+  /invitations/{id}/accept:
+    post:
+      consumes:
+      - application/json
+      description: Aceita um convite pendente e adiciona o usuário à organização
+      parameters:
+      - description: ID do convite
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid invitation ID
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: This invitation was sent to a different email address
+          schema:
+            type: string
+        "404":
+          description: Invalid or expired invitation
+          schema:
+            type: string
+        "409":
+          description: You are already a member
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Aceitar convite de organização
+      tags:
+      - organizations
+  /invitations/mine:
+    get:
+      consumes:
+      - application/json
+      description: Retorna todos os convites pendentes para o email do usuário autenticado
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.OrgInvitation'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: User not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar meus convites pendentes
+      tags:
+      - organizations
+  /newsletter/subscribe:
+    post:
+      consumes:
+      - application/json
+      description: Adiciona um contato à audience de newsletter via Resend API
+      parameters:
+      - description: Email e nome opcional
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.subscribeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Inscrever na newsletter
+      tags:
+      - newsletter
+  /orgs:
+    get:
+      consumes:
+      - application/json
+      description: Retorna todas as organizações das quais o usuário autenticado é
+        membro
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.OrgListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar organizações do usuário
+      tags:
+      - organizations
+    post:
+      consumes:
+      - application/json
+      description: Cria uma nova organização e define o usuário autenticado como proprietário
+      parameters:
+      - description: Dados da organização
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateOrgRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Organization'
+        "400":
+          description: Invalid request body
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "409":
+          description: Já existe uma empresa com este nome
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Criar nova organização
+      tags:
+      - organizations
+  /orgs/current:
+    delete:
+      consumes:
+      - application/json
+      description: Exclui a organização e todos os membros. Somente o proprietário
+        pode executar
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Only the organization owner can delete it
+          schema:
+            type: string
+        "404":
+          description: Organization not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Excluir organização atual
+      tags:
+      - organizations
+    get:
+      consumes:
+      - application/json
+      description: Retorna informações detalhadas da organização selecionada
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.OrgResponse'
+        "404":
+          description: Organization not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Detalhes da organização atual
+      tags:
+      - organizations
+    put:
+      consumes:
+      - application/json
+      description: Atualiza os dados da organização selecionada
+      parameters:
+      - description: Dados para atualizar
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateOrgRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Organization'
+        "400":
+          description: Invalid request body
+          schema:
+            type: string
+        "500":
+          description: Error updating organization
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar organização atual
+      tags:
+      - organizations
+  /orgs/current/invitations:
+    post:
+      consumes:
+      - application/json
+      description: Envia um convite por email para ingressar na organização
+      parameters:
+      - description: Dados do convite
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.InviteMemberRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.OrgInvitation'
+        "400":
+          description: Email is required
+          schema:
+            type: string
+        "402":
+          description: Member limit reached
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: User is already a member
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Convidar membro para a organização
+      tags:
+      - organizations
+  /orgs/current/members:
+    get:
+      consumes:
+      - application/json
+      description: Retorna todos os membros e convites pendentes da organização atual
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.MemberListResponse'
+        "500":
+          description: Error listing members
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar membros da organização
+      tags:
+      - organizations
+  /orgs/current/members/{uid}:
+    delete:
+      consumes:
+      - application/json
+      description: Remove um membro da organização. Membros podem se remover; admins/owners
+        podem remover qualquer um
+      parameters:
+      - description: ID do usuário
+        in: path
+        name: uid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Cannot remove the organization owner
+          schema:
+            type: string
+        "404":
+          description: Member not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Remover membro da organização
+      tags:
+      - organizations
+  /orgs/current/members/{uid}/permissions:
+    put:
+      consumes:
+      - application/json
+      description: Define as permissões granulares de um membro. Somente owner/admin
+        pode executar
+      parameters:
+      - description: ID do usuário
+        in: path
+        name: uid
+        required: true
+        type: string
+      - description: Lista de permissões
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateMemberPermissionsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid user ID
+          schema:
+            type: string
+        "404":
+          description: Member not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar permissões de um membro
+      tags:
+      - organizations
+  /orgs/current/members/{uid}/role:
+    put:
+      consumes:
+      - application/json
+      description: Altera o papel (role) de um membro dentro da organização
+      parameters:
+      - description: ID do usuário
+        in: path
+        name: uid
+        required: true
+        type: string
+      - description: Novo papel
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateMemberRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid user ID
+          schema:
+            type: string
+        "403":
+          description: Only the owner can promote to admin
+          schema:
+            type: string
+        "404":
+          description: Member not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Alterar papel de um membro
+      tags:
+      - organizations
+  /orgs/current/subscription:
+    get:
+      consumes:
+      - application/json
+      description: Retorna o plano atual da organização
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Subscription'
+        "404":
+          description: Subscription not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter assinatura da organização
+      tags:
+      - organizations
+  /orgs/current/subscription/cancel:
+    post:
+      consumes:
+      - application/json
+      description: Cancela a assinatura atual da organização. O acesso continua até
+        o fim do período
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Cannot cancel free plan
+          schema:
+            type: string
+        "404":
+          description: Subscription not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Cancelar assinatura
+      tags:
+      - billing
+  /orgs/current/subscription/checkout:
+    post:
+      consumes:
+      - application/json
+      description: Cria ou faz upgrade da assinatura da organização via Asaas
+      parameters:
+      - description: Dados do checkout
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CheckoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.CheckoutResponse'
+        "400":
+          description: Invalid request body
+          schema:
+            type: string
+        "404":
+          description: Subscription not found
+          schema:
+            type: string
+        "500":
+          description: Failed to create subscription
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Criar ou atualizar assinatura
+      tags:
+      - billing
+  /orgs/current/usage:
+    get:
+      consumes:
+      - application/json
+      description: Retorna o uso atual de recursos comparado aos limites do plano
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UsageResponse'
+        "404":
+          description: Subscription not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Obter uso de recursos da organização
+      tags:
+      - organizations
+  /orgs/switch/{id}:
+    post:
+      consumes:
+      - application/json
+      description: Gera um novo JWT com o org_id especificado
+      parameters:
+      - description: ID da organização
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid organization ID
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "403":
+          description: You are not a member of this organization
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Trocar de organização
+      tags:
+      - organizations
+  /platform/orgs:
+    get:
+      description: Lista todas as organizações da plataforma (somente superadmin)
+      parameters:
+      - description: Página (padrão 1)
+        in: query
+        name: page
+        type: integer
+      - description: Itens por página (padrão 20, máx 100)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Error listing organizations
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Listar todas as organizações
+      tags:
+      - platform
+  /platform/orgs-with-members:
+    get:
+      description: Retorna todas as organizações com seus membros (somente superadmin)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "500":
+          description: Error listing organizations
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Organizações com membros
+      tags:
+      - platform
+  /platform/orgs/{id}/plan:
+    put:
+      consumes:
+      - application/json
+      description: Sobrescreve o plano de assinatura de uma organização (somente superadmin)
+      parameters:
+      - description: Organization ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Novo plano (plan_id)
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid plan ID
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "404":
+          description: Subscription not found
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Atualizar plano de organização
+      tags:
+      - platform
+  /platform/stats:
+    get:
+      description: Retorna métricas globais da plataforma (somente superadmin)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Estatísticas da plataforma
+      tags:
+      - platform
   /profile:
     get:
       consumes:
@@ -674,6 +8189,68 @@ paths:
       summary: Upload de foto de perfil
       tags:
       - profile
+  /profile/cover-image:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Faz upload de uma imagem de capa para o perfil do usuário. A imagem
+        é redimensionada para 1200x400 e comprimida.
+      parameters:
+      - description: Imagem de capa (PNG ou JPEG, max 10MB)
+        in: formData
+        name: cover_image
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Profile'
+        "400":
+          description: Invalid image
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+        "413":
+          description: Image too large
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Upload de imagem de capa
+      tags:
+      - profile
+  /robots.txt:
+    get:
+      description: Retorna o arquivo robots.txt com referência ao sitemap
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: robots.txt content
+          schema:
+            type: string
+      summary: Servir robots.txt
+      tags:
+      - seo
+  /sitemap.xml:
+    get:
+      description: Gera um sitemap.xml dinâmico a partir dos posts publicados do blog
+      produces:
+      - text/xml
+      responses:
+        "200":
+          description: XML sitemap
+          schema:
+            type: string
+      summary: Gerar sitemap XML
+      tags:
+      - seo
   /users:
     get:
       description: Retorna lista paginada de todos os usuários com perfil. Requer
@@ -762,6 +8339,102 @@ paths:
       summary: Alterar role de um usuário
       tags:
       - users
+  /webhooks/asaas:
+    post:
+      consumes:
+      - application/json
+      description: Recebe eventos de webhook do Asaas (pagamentos e assinaturas)
+      parameters:
+      - description: Evento do webhook
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.AsaasWebhookEvent'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid request body
+          schema:
+            type: string
+        "401":
+          description: Invalid webhook token
+          schema:
+            type: string
+      summary: Webhook do Asaas
+      tags:
+      - webhooks
+  /webhooks/instagram:
+    get:
+      description: Handshake de verificação do webhook Meta (chamado automaticamente
+        pelo Meta)
+      parameters:
+      - description: Modo de verificação (subscribe)
+        in: query
+        name: hub.mode
+        required: true
+        type: string
+      - description: Token de verificação
+        in: query
+        name: hub.verify_token
+        required: true
+        type: string
+      - description: Challenge para resposta
+        in: query
+        name: hub.challenge
+        required: true
+        type: string
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: Challenge response
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+        "500":
+          description: Server not configured
+          schema:
+            type: string
+      summary: Verificação de webhook do Instagram
+      tags:
+      - webhooks
+    post:
+      consumes:
+      - application/json
+      description: Processa eventos de webhook do Instagram (comentários e DMs) com
+        validação de assinatura
+      parameters:
+      - description: Assinatura HMAC SHA-256 do payload
+        in: header
+        name: X-Hub-Signature-256
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            type: string
+        "403":
+          description: Forbidden
+          schema:
+            type: string
+      summary: Receber evento de webhook do Instagram
+      tags:
+      - webhooks
 securityDefinitions:
   BearerAuth:
     description: 'Digite: Bearer {seu_token_aqui}'

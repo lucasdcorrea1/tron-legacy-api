@@ -1,16 +1,24 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"image"
+	"image/jpeg"
+	_ "image/png"
+	"io"
 	"log/slog"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/tron-legacy/api/internal/config"
 	"github.com/tron-legacy/api/internal/database"
 	"github.com/tron-legacy/api/internal/middleware"
 	"github.com/tron-legacy/api/internal/models"
@@ -23,7 +31,19 @@ import (
 // ORG CRUD
 // ══════════════════════════════════════════════════════════════════════
 
-// CreateOrg creates a new organization and makes the authenticated user the owner.
+// CreateOrg godoc
+// @Summary Criar nova organização
+// @Description Cria uma nova organização e define o usuário autenticado como proprietário
+// @Tags organizations
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body models.CreateOrgRequest true "Dados da organização"
+// @Success 201 {object} models.Organization
+// @Failure 400 {string} string "Invalid request body"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 409 {object} map[string]string "Já existe uma empresa com este nome"
+// @Router /orgs [post]
 func CreateOrg(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	if userID == primitive.NilObjectID {
@@ -45,6 +65,20 @@ func CreateOrg(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	// Prevent users from creating multiple orgs — each user gets one org at registration
+	ownerCount, _ := database.OrgMemberships().CountDocuments(ctx, bson.M{
+		"user_id":  userID,
+		"org_role": "owner",
+	})
+	if ownerCount > 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": "Você já possui uma empresa. Use as configurações para alterar o nome.",
+		})
+		return
+	}
 
 	// Block duplicate org names (case-insensitive)
 	escapedName := regexp.QuoteMeta(req.Name)
@@ -120,7 +154,16 @@ func CreateOrg(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(org)
 }
 
-// ListOrgs lists all organizations the authenticated user is a member of.
+// ListOrgs godoc
+// @Summary Listar organizações do usuário
+// @Description Retorna todas as organizações das quais o usuário autenticado é membro
+// @Tags organizations
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} models.OrgListResponse
+// @Failure 401 {string} string "Unauthorized"
+// @Router /orgs [get]
 func ListOrgs(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	if userID == primitive.NilObjectID {
@@ -170,7 +213,16 @@ func ListOrgs(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(models.OrgListResponse{Organizations: orgs})
 }
 
-// GetOrg returns details of a specific organization.
+// GetOrg godoc
+// @Summary Detalhes da organização atual
+// @Description Retorna informações detalhadas da organização selecionada
+// @Tags organizations
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} models.OrgResponse
+// @Failure 404 {string} string "Organization not found"
+// @Router /orgs/current [get]
 func GetOrg(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 	if orgID == primitive.NilObjectID {
@@ -198,7 +250,18 @@ func GetOrg(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// UpdateOrg updates organization details.
+// UpdateOrg godoc
+// @Summary Atualizar organização atual
+// @Description Atualiza os dados da organização selecionada
+// @Tags organizations
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body models.UpdateOrgRequest true "Dados para atualizar"
+// @Success 200 {object} models.Organization
+// @Failure 400 {string} string "Invalid request body"
+// @Failure 500 {string} string "Error updating organization"
+// @Router /orgs/current [put]
 func UpdateOrg(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 
@@ -233,7 +296,104 @@ func UpdateOrg(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(org)
 }
 
-// DeleteOrg deletes an organization and all memberships. Owner only.
+// UploadOrgLogo handles logo image upload for the current organization.
+func UploadOrgLogo(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrgID(r)
+
+	// 2MB limit
+	r.Body = http.MaxBytesReader(w, r.Body, 2<<20)
+	if err := r.ParseMultipartForm(2 << 20); err != nil {
+		http.Error(w, "Image too large (max 2MB)", http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	file, header, err := r.FormFile("logo")
+	if err != nil {
+		http.Error(w, "No image provided", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	ct := header.Header.Get("Content-Type")
+	if ct != "image/jpeg" && ct != "image/png" && ct != "image/webp" && ct != "image/svg+xml" {
+		http.Error(w, "Only JPEG, PNG, WebP and SVG images are allowed", http.StatusBadRequest)
+		return
+	}
+
+	imgData, err := io.ReadAll(file)
+	if err != nil {
+		http.Error(w, "Failed to read image", http.StatusBadRequest)
+		return
+	}
+
+	// For raster images, resize to 128x128
+	var logoURI string
+	if ct == "image/svg+xml" {
+		logoURI = "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString(imgData)
+	} else {
+		img, _, decErr := image.Decode(bytes.NewReader(imgData))
+		if decErr != nil {
+			http.Error(w, "Invalid image format", http.StatusBadRequest)
+			return
+		}
+		resized := resizeImage(img, 128, 128)
+		var buf bytes.Buffer
+		if err := jpeg.Encode(&buf, resized, &jpeg.Options{Quality: 85}); err != nil {
+			http.Error(w, "Failed to process image", http.StatusInternalServerError)
+			return
+		}
+		logoURI = "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(buf.Bytes())
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err = database.Organizations().UpdateOne(ctx, bson.M{"_id": orgID}, bson.M{
+		"$set": bson.M{"logo_url": logoURI, "updated_at": time.Now()},
+	})
+	if err != nil {
+		http.Error(w, "Error saving logo", http.StatusInternalServerError)
+		return
+	}
+
+	var org models.Organization
+	database.Organizations().FindOne(ctx, bson.M{"_id": orgID}).Decode(&org)
+
+	slog.Info("org_logo_uploaded", "org_id", orgID.Hex())
+	json.NewEncoder(w).Encode(org)
+}
+
+// RemoveOrgLogo removes the logo for the current organization.
+func RemoveOrgLogo(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrgID(r)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := database.Organizations().UpdateOne(ctx, bson.M{"_id": orgID}, bson.M{
+		"$set": bson.M{"logo_url": "", "updated_at": time.Now()},
+	})
+	if err != nil {
+		http.Error(w, "Error removing logo", http.StatusInternalServerError)
+		return
+	}
+
+	var org models.Organization
+	database.Organizations().FindOne(ctx, bson.M{"_id": orgID}).Decode(&org)
+	json.NewEncoder(w).Encode(org)
+}
+
+// DeleteOrg godoc
+// @Summary Excluir organização atual
+// @Description Exclui a organização e todos os membros. Somente o proprietário pode executar
+// @Tags organizations
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]string
+// @Failure 403 {string} string "Only the organization owner can delete it"
+// @Failure 404 {string} string "Organization not found"
+// @Router /orgs/current [delete]
 func DeleteOrg(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 	userID := middleware.GetUserID(r)
@@ -267,7 +427,16 @@ func DeleteOrg(w http.ResponseWriter, r *http.Request) {
 // MEMBERS
 // ══════════════════════════════════════════════════════════════════════
 
-// ListMembers lists all members and pending invitations for the org.
+// ListMembers godoc
+// @Summary Listar membros da organização
+// @Description Retorna todos os membros e convites pendentes da organização atual
+// @Tags organizations
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} models.MemberListResponse
+// @Failure 500 {string} string "Error listing members"
+// @Router /orgs/current/members [get]
 func ListMembers(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 
@@ -330,7 +499,20 @@ func ListMembers(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// UpdateMemberRole changes a member's role within the organization.
+// UpdateMemberRole godoc
+// @Summary Alterar papel de um membro
+// @Description Altera o papel (role) de um membro dentro da organização
+// @Tags organizations
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param uid path string true "ID do usuário"
+// @Param request body models.UpdateMemberRoleRequest true "Novo papel"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Invalid user ID"
+// @Failure 403 {string} string "Only the owner can promote to admin"
+// @Failure 404 {string} string "Member not found"
+// @Router /orgs/current/members/{uid}/role [put]
 func UpdateMemberRole(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 	actorRole := middleware.GetOrgRole(r)
@@ -389,8 +571,19 @@ func UpdateMemberRole(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"message": "Role updated"})
 }
 
-// UpdateMemberPermissions sets the granular permissions for a member.
-// Only owner/admin can call this. Permissions only apply to "member" role.
+// UpdateMemberPermissions godoc
+// @Summary Atualizar permissões de um membro
+// @Description Define as permissões granulares de um membro. Somente owner/admin pode executar
+// @Tags organizations
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param uid path string true "ID do usuário"
+// @Param request body models.UpdateMemberPermissionsRequest true "Lista de permissões"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {string} string "Invalid user ID"
+// @Failure 404 {string} string "Member not found"
+// @Router /orgs/current/members/{uid}/permissions [put]
 func UpdateMemberPermissions(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 
@@ -463,7 +656,18 @@ func UpdateMemberPermissions(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// RemoveMember removes a member from the organization.
+// RemoveMember godoc
+// @Summary Remover membro da organização
+// @Description Remove um membro da organização. Membros podem se remover; admins/owners podem remover qualquer um
+// @Tags organizations
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param uid path string true "ID do usuário"
+// @Success 200 {object} map[string]string
+// @Failure 403 {string} string "Cannot remove the organization owner"
+// @Failure 404 {string} string "Member not found"
+// @Router /orgs/current/members/{uid} [delete]
 func RemoveMember(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 	actorID := middleware.GetUserID(r)
@@ -510,7 +714,19 @@ func RemoveMember(w http.ResponseWriter, r *http.Request) {
 // INVITATIONS
 // ══════════════════════════════════════════════════════════════════════
 
-// InviteMember sends an invitation to join the organization.
+// InviteMember godoc
+// @Summary Convidar membro para a organização
+// @Description Envia um convite por email para ingressar na organização
+// @Tags organizations
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body models.InviteMemberRequest true "Dados do convite"
+// @Success 201 {object} models.OrgInvitation
+// @Failure 400 {string} string "Email is required"
+// @Failure 402 {object} map[string]string "Member limit reached"
+// @Failure 409 {string} string "User is already a member"
+// @Router /orgs/current/invitations [post]
 func InviteMember(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 	userID := middleware.GetUserID(r)
@@ -612,6 +828,14 @@ func InviteMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Send invitation email
+	var org models.Organization
+	orgName := "a organização"
+	if err := database.Organizations().FindOne(ctx, bson.M{"_id": orgID}).Decode(&org); err == nil {
+		orgName = org.Name
+	}
+	go sendInvitationEmail(req.Email, orgName, invitation.OrgRole, token)
+
 	slog.Info("org_invitation_sent",
 		"org_id", orgID.Hex(),
 		"email", req.Email,
@@ -622,7 +846,17 @@ func InviteMember(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(invitation)
 }
 
-// MyInvitations returns pending invitations for the logged-in user's email.
+// MyInvitations godoc
+// @Summary Listar meus convites pendentes
+// @Description Retorna todos os convites pendentes para o email do usuário autenticado
+// @Tags organizations
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {array} models.OrgInvitation
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 404 {string} string "User not found"
+// @Router /invitations/mine [get]
 func MyInvitations(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	if userID == primitive.NilObjectID {
@@ -677,7 +911,21 @@ func MyInvitations(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
-// AcceptInvitation accepts a pending invitation and adds the user to the organization.
+// AcceptInvitation godoc
+// @Summary Aceitar convite de organização
+// @Description Aceita um convite pendente e adiciona o usuário à organização
+// @Tags organizations
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID do convite"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Invalid invitation ID"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 403 {string} string "This invitation was sent to a different email address"
+// @Failure 404 {string} string "Invalid or expired invitation"
+// @Failure 409 {string} string "You are already a member"
+// @Router /invitations/{id}/accept [post]
 func AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 	invID := r.PathValue("id")
 	if invID == "" {
@@ -770,11 +1018,346 @@ func AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// AcceptInvitationByToken godoc
+// @Summary Aceitar convite por token (público)
+// @Description Aceita convite via link do email, sem necessidade de login
+// @Tags organizations
+// @Accept json
+// @Produce json
+// @Param token path string true "Token do convite"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Token is required"
+// @Failure 404 {string} string "Invalid or expired invitation"
+// @Router /invitations/accept-token/{token} [post]
+func AcceptInvitationByToken(w http.ResponseWriter, r *http.Request) {
+	token := r.PathValue("token")
+	if token == "" {
+		http.Error(w, `{"message":"Token is required"}`, http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Find invitation by token
+	var invitation models.OrgInvitation
+	err := database.OrgInvitations().FindOne(ctx, bson.M{
+		"token": token,
+	}).Decode(&invitation)
+	if err != nil {
+		http.Error(w, `{"message":"Convite não encontrado"}`, http.StatusNotFound)
+		return
+	}
+
+	// Get org name for response
+	orgName := ""
+	var org models.Organization
+	if err := database.Organizations().FindOne(ctx, bson.M{"_id": invitation.OrgID}).Decode(&org); err == nil {
+		orgName = org.Name
+	}
+
+	// Already accepted?
+	if invitation.Status == "accepted" {
+		json.NewEncoder(w).Encode(map[string]string{
+			"message":  "Convite já foi aceito anteriormente",
+			"status":   "already_accepted",
+			"org_name": orgName,
+		})
+		return
+	}
+
+	// Expired?
+	if invitation.Status != "pending" && invitation.Status != "pre_accepted" {
+		http.Error(w, `{"message":"Este convite não está mais disponível"}`, http.StatusGone)
+		return
+	}
+	if time.Now().After(invitation.ExpiresAt) {
+		database.OrgInvitations().UpdateOne(ctx,
+			bson.M{"_id": invitation.ID},
+			bson.M{"$set": bson.M{"status": "expired"}},
+		)
+		http.Error(w, `{"message":"Este convite expirou. Solicite um novo convite."}`, http.StatusGone)
+		return
+	}
+
+	// Check if user with this email already exists
+	var user models.User
+	err = database.Users().FindOne(ctx, bson.M{"email": invitation.Email}).Decode(&user)
+	if err != nil {
+		// User doesn't exist yet — mark as pre_accepted
+		database.OrgInvitations().UpdateOne(ctx,
+			bson.M{"_id": invitation.ID},
+			bson.M{"$set": bson.M{"status": "pre_accepted"}},
+		)
+
+		slog.Info("org_invitation_pre_accepted",
+			"email", invitation.Email,
+			"org_id", invitation.OrgID.Hex(),
+		)
+
+		json.NewEncoder(w).Encode(map[string]string{
+			"message":  "Convite aceito! Faça login ou cadastre-se para acessar.",
+			"status":   "pre_accepted",
+			"org_name": orgName,
+		})
+		return
+	}
+
+	// User exists — check if already a member
+	count, _ := database.OrgMemberships().CountDocuments(ctx, bson.M{
+		"org_id":  invitation.OrgID,
+		"user_id": user.ID,
+	})
+	if count > 0 {
+		database.OrgInvitations().UpdateOne(ctx,
+			bson.M{"_id": invitation.ID},
+			bson.M{"$set": bson.M{"status": "accepted"}},
+		)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message":  "Você já faz parte desta organização!",
+			"status":   "already_member",
+			"org_name": orgName,
+		})
+		return
+	}
+
+	// Create membership
+	membership := models.OrgMembership{
+		ID:          primitive.NewObjectID(),
+		OrgID:       invitation.OrgID,
+		UserID:      user.ID,
+		OrgRole:     invitation.OrgRole,
+		Permissions: invitation.Permissions,
+		JoinedAt:    time.Now(),
+	}
+	_, err = database.OrgMemberships().InsertOne(ctx, membership)
+	if err != nil {
+		http.Error(w, `{"message":"Erro ao entrar na organização"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Mark invitation as accepted
+	database.OrgInvitations().UpdateOne(ctx,
+		bson.M{"_id": invitation.ID},
+		bson.M{"$set": bson.M{"status": "accepted"}},
+	)
+
+	slog.Info("org_invitation_accepted_by_token",
+		"org_id", invitation.OrgID.Hex(),
+		"user_id", user.ID.Hex(),
+		"email", invitation.Email,
+	)
+
+	json.NewEncoder(w).Encode(map[string]string{
+		"message":  "Convite aceito! Faça login para acessar.",
+		"status":   "accepted",
+		"org_name": orgName,
+	})
+}
+
+// AutoAcceptInvitations checks for pre-accepted invitations for a user's email
+// and creates org memberships. Called during login/register.
+func AutoAcceptInvitations(ctx context.Context, userID primitive.ObjectID, email string) {
+	cursor, err := database.OrgInvitations().Find(ctx, bson.M{
+		"email":  email,
+		"status": "pre_accepted",
+	})
+	if err != nil {
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var invitations []models.OrgInvitation
+	if err := cursor.All(ctx, &invitations); err != nil {
+		return
+	}
+
+	for _, inv := range invitations {
+		// Check not already a member
+		count, _ := database.OrgMemberships().CountDocuments(ctx, bson.M{
+			"org_id":  inv.OrgID,
+			"user_id": userID,
+		})
+		if count > 0 {
+			database.OrgInvitations().UpdateOne(ctx,
+				bson.M{"_id": inv.ID},
+				bson.M{"$set": bson.M{"status": "accepted"}},
+			)
+			continue
+		}
+
+		membership := models.OrgMembership{
+			ID:          primitive.NewObjectID(),
+			OrgID:       inv.OrgID,
+			UserID:      userID,
+			OrgRole:     inv.OrgRole,
+			Permissions: inv.Permissions,
+			JoinedAt:    time.Now(),
+		}
+		if _, err := database.OrgMemberships().InsertOne(ctx, membership); err == nil {
+			database.OrgInvitations().UpdateOne(ctx,
+				bson.M{"_id": inv.ID},
+				bson.M{"$set": bson.M{"status": "accepted"}},
+			)
+			slog.Info("auto_accepted_invitation",
+				"user_id", userID.Hex(),
+				"org_id", inv.OrgID.Hex(),
+				"email", email,
+			)
+		}
+	}
+}
+
+// sendInvitationEmail sends the invitation email via Resend.
+func sendInvitationEmail(email, orgName, role, token string) {
+	cfg := config.Get()
+	if cfg.ResendAPIKey == "" {
+		slog.Error("invite_email: RESEND_API_KEY not configured")
+		return
+	}
+
+	rolePT := map[string]string{
+		"admin":  "Administrador",
+		"member": "Membro",
+		"viewer": "Visualizador",
+	}[role]
+	if rolePT == "" {
+		rolePT = "Membro"
+	}
+
+	inviteURL := fmt.Sprintf("%s/invite/%s", cfg.FrontendURL, token)
+	emailHTML := buildInvitationEmailHTML(orgName, rolePT, inviteURL)
+
+	resendBody := map[string]interface{}{
+		"from":    cfg.FromEmail,
+		"to":      []string{email},
+		"subject": fmt.Sprintf("Convite para %s - Whodo", orgName),
+		"html":    emailHTML,
+	}
+
+	bodyBytes, _ := json.Marshal(resendBody)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, _ := http.NewRequest("POST", "https://api.resend.com/emails", bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+cfg.ResendAPIKey)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		slog.Error("invite_email: resend call failed", "error", err, "email", email)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
+		slog.Info("invite_email: sent", "email", email, "org", orgName)
+	} else {
+		body, _ := io.ReadAll(resp.Body)
+		slog.Error("invite_email: resend error", "status", resp.StatusCode, "body", string(body))
+	}
+}
+
+func buildInvitationEmailHTML(orgName, role, inviteURL string) string {
+	return fmt.Sprintf(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background-color:#09090b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="background-color:#09090b;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="max-width:520px;background:linear-gradient(145deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.06);border-radius:16px;overflow:hidden;">
+          <!-- Header -->
+          <tr>
+            <td style="padding:32px 40px 0;text-align:center;">
+              <h1 style="margin:0;font-size:28px;font-weight:700;color:#a855f7;">Whodo</h1>
+            </td>
+          </tr>
+
+          <!-- Divider -->
+          <tr>
+            <td style="padding:20px 40px;">
+              <div style="height:1px;background:linear-gradient(90deg,transparent,rgba(168,85,247,0.3),transparent);"></div>
+            </td>
+          </tr>
+
+          <!-- Content -->
+          <tr>
+            <td style="padding:0 40px;">
+              <h2 style="margin:0 0 8px;font-size:20px;font-weight:600;color:#fafafa;">Você foi convidado!</h2>
+              <p style="margin:0 0 24px;font-size:15px;color:#d4d4d8;line-height:1.6;">
+                Você recebeu um convite para fazer parte da equipe <strong style="color:#fafafa;">%s</strong> como <strong style="color:#a855f7;">%s</strong>.
+              </p>
+              <p style="margin:0 0 24px;font-size:15px;color:#d4d4d8;line-height:1.6;">
+                Clique no botão abaixo para aceitar o convite.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Button -->
+          <tr>
+            <td style="padding:0 40px;" align="center">
+              <a href="%s" target="_blank" style="display:inline-block;padding:14px 36px;background:linear-gradient(135deg,#a855f7,#6366f1);color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:10px;">
+                Aceitar convite
+              </a>
+            </td>
+          </tr>
+
+          <!-- Expiry notice -->
+          <tr>
+            <td style="padding:24px 40px 0;">
+              <p style="margin:0;font-size:13px;color:#a1a1aa;line-height:1.5;text-align:center;">
+                Este convite expira em <strong style="color:#d4d4d8;">7 dias</strong>.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Link fallback -->
+          <tr>
+            <td style="padding:20px 40px;">
+              <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:8px;padding:12px 16px;">
+                <p style="margin:0 0 4px;font-size:11px;color:#a1a1aa;">Se o botão não funcionar, copie e cole este link:</p>
+                <p style="margin:0;font-size:12px;color:#a78bfa;word-break:break-all;">%s</p>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:20px 40px 32px;">
+              <div style="height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.05),transparent);margin-bottom:20px;"></div>
+              <p style="margin:0;font-size:12px;color:#71717a;text-align:center;line-height:1.5;">
+                &copy; %d Whodo Group LTDA<br>Todos os direitos reservados.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`, orgName, role, inviteURL, inviteURL, time.Now().Year())
+}
+
 // ══════════════════════════════════════════════════════════════════════
 // SWITCH ORG
 // ══════════════════════════════════════════════════════════════════════
 
-// SwitchOrg generates a new JWT with the specified org_id.
+// SwitchOrg godoc
+// @Summary Trocar de organização
+// @Description Gera um novo JWT com o org_id especificado
+// @Tags organizations
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID da organização"
+// @Success 200 {object} map[string]string
+// @Failure 400 {string} string "Invalid organization ID"
+// @Failure 401 {string} string "Unauthorized"
+// @Failure 403 {string} string "You are not a member of this organization"
+// @Router /orgs/switch/{id} [post]
 func SwitchOrg(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	if userID == primitive.NilObjectID {
@@ -823,7 +1406,16 @@ func SwitchOrg(w http.ResponseWriter, r *http.Request) {
 // SUBSCRIPTION / USAGE
 // ══════════════════════════════════════════════════════════════════════
 
-// GetSubscription returns the current plan for the organization.
+// GetSubscription godoc
+// @Summary Obter assinatura da organização
+// @Description Retorna o plano atual da organização
+// @Tags organizations
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} models.Subscription
+// @Failure 404 {string} string "Subscription not found"
+// @Router /orgs/current/subscription [get]
 func GetSubscription(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 
@@ -840,7 +1432,16 @@ func GetSubscription(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(sub)
 }
 
-// GetUsage returns current resource usage vs plan limits.
+// GetUsage godoc
+// @Summary Obter uso de recursos da organização
+// @Description Retorna o uso atual de recursos comparado aos limites do plano
+// @Tags organizations
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} models.UsageResponse
+// @Failure 404 {string} string "Subscription not found"
+// @Router /orgs/current/usage [get]
 func GetUsage(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.GetOrgID(r)
 

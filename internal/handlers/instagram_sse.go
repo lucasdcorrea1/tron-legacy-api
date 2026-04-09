@@ -68,6 +68,15 @@ func sseUnregister(ch chan WebhookSSEEvent) {
 
 // AutoReplySSE streams webhook events to the browser via Server-Sent Events.
 // Auth is done via ?token= query param because EventSource doesn't support custom headers.
+// @Summary Stream de eventos de auto-resposta (SSE)
+// @Description Transmite eventos de webhook em tempo real via Server-Sent Events (autenticação via query param token)
+// @Tags instagram-autoreply
+// @Produce text/event-stream
+// @Param token query string true "JWT token para autenticação"
+// @Success 200 {string} string "Event stream"
+// @Failure 401 {string} string "Token required or invalid"
+// @Failure 403 {string} string "Forbidden"
+// @Router /admin/instagram/autoreply/live [get]
 func AutoReplySSE(w http.ResponseWriter, r *http.Request) {
 	// 1. Validate JWT from query param
 	tokenStr := r.URL.Query().Get("token")

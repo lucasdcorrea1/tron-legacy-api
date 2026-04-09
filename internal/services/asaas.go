@@ -63,12 +63,41 @@ type AsaasSubscription struct {
 }
 
 type CreateSubscriptionRequest struct {
-	Customer     string  `json:"customer"`
-	BillingType  string  `json:"billingType"` // BOLETO, CREDIT_CARD, PIX, UNDEFINED
-	Value        float64 `json:"value"`
-	Cycle        string  `json:"cycle"`       // MONTHLY, YEARLY
-	Description  string  `json:"description"`
-	NextDueDate  string  `json:"nextDueDate,omitempty"`
+	Customer             string                `json:"customer"`
+	BillingType          string                `json:"billingType"` // BOLETO, CREDIT_CARD, PIX, UNDEFINED
+	Value                float64               `json:"value"`
+	Cycle                string                `json:"cycle"`       // MONTHLY, YEARLY
+	Description          string                `json:"description"`
+	NextDueDate          string                `json:"nextDueDate,omitempty"`
+	CreditCard           *CreditCardInfo       `json:"creditCard,omitempty"`
+	CreditCardHolderInfo *CreditCardHolderInfo `json:"creditCardHolderInfo,omitempty"`
+	RemoteIp             string                `json:"remoteIp,omitempty"`
+}
+
+// CreditCardInfo holds credit card data for Asaas subscription creation.
+type CreditCardInfo struct {
+	HolderName  string `json:"holderName"`
+	Number      string `json:"number"`
+	ExpiryMonth string `json:"expiryMonth"`
+	ExpiryYear  string `json:"expiryYear"`
+	Ccv         string `json:"ccv"`
+}
+
+// CreditCardHolderInfo holds cardholder details required by Asaas.
+type CreditCardHolderInfo struct {
+	Name          string `json:"name"`
+	Email         string `json:"email"`
+	CpfCnpj       string `json:"cpfCnpj"`
+	PostalCode    string `json:"postalCode"`
+	AddressNumber string `json:"addressNumber"`
+	Phone         string `json:"phone"`
+}
+
+// PixQrCode holds PIX payment QR code data from Asaas.
+type PixQrCode struct {
+	EncodedImage   string `json:"encodedImage"`
+	Payload        string `json:"payload"`
+	ExpirationDate string `json:"expirationDate"`
 }
 
 type AsaasError struct {
@@ -177,6 +206,24 @@ func (c *AsaasClient) CancelSubscription(subscriptionID string) error {
 	return err
 }
 
+// AsaasBalance represents the Asaas account balance.
+type AsaasBalance struct {
+	Balance float64 `json:"balance"`
+}
+
+// GetBalance retrieves the current account balance from Asaas.
+func (c *AsaasClient) GetBalance() (float64, error) {
+	data, err := c.doRequest("GET", "/finance/balance", nil)
+	if err != nil {
+		return 0, err
+	}
+	var result AsaasBalance
+	if err := json.Unmarshal(data, &result); err != nil {
+		return 0, fmt.Errorf("unmarshal balance: %w", err)
+	}
+	return result.Balance, nil
+}
+
 // GetSubscription retrieves a subscription from Asaas.
 func (c *AsaasClient) GetSubscription(subscriptionID string) (*AsaasSubscription, error) {
 	data, err := c.doRequest("GET", "/subscriptions/"+subscriptionID, nil)
@@ -188,4 +235,62 @@ func (c *AsaasClient) GetSubscription(subscriptionID string) (*AsaasSubscription
 		return nil, err
 	}
 	return &sub, nil
+}
+
+// AsaasPayment represents a payment from Asaas.
+type AsaasPayment struct {
+	ID          string  `json:"id"`
+	Status      string  `json:"status"`
+	Value       float64 `json:"value"`
+	BillingType string  `json:"billingType"`
+	InvoiceURL  string  `json:"invoiceUrl"`
+	BankSlipURL string  `json:"bankSlipUrl"`
+}
+
+// GetSubscriptionPaymentURL retrieves the invoiceUrl of the first pending payment for a subscription.
+func (c *AsaasClient) GetSubscriptionPaymentURL(subscriptionID string) (string, error) {
+	data, err := c.doRequest("GET", "/subscriptions/"+subscriptionID+"/payments", nil)
+	if err != nil {
+		return "", err
+	}
+	var result struct {
+		Data []AsaasPayment `json:"data"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return "", fmt.Errorf("unmarshal payments: %w", err)
+	}
+	for _, p := range result.Data {
+		if p.InvoiceURL != "" {
+			return p.InvoiceURL, nil
+		}
+	}
+	return "", fmt.Errorf("no payment with invoiceUrl found for subscription %s", subscriptionID)
+}
+
+// GetSubscriptionPayments returns all payments for a subscription.
+func (c *AsaasClient) GetSubscriptionPayments(subscriptionID string) ([]AsaasPayment, error) {
+	data, err := c.doRequest("GET", "/subscriptions/"+subscriptionID+"/payments", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result struct {
+		Data []AsaasPayment `json:"data"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, fmt.Errorf("unmarshal payments: %w", err)
+	}
+	return result.Data, nil
+}
+
+// GetPixQrCode retrieves the PIX QR code for a payment.
+func (c *AsaasClient) GetPixQrCode(paymentID string) (*PixQrCode, error) {
+	data, err := c.doRequest("GET", "/payments/"+paymentID+"/pixQrCode", nil)
+	if err != nil {
+		return nil, err
+	}
+	var qr PixQrCode
+	if err := json.Unmarshal(data, &qr); err != nil {
+		return nil, fmt.Errorf("unmarshal pix qr: %w", err)
+	}
+	return &qr, nil
 }

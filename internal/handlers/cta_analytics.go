@@ -45,7 +45,15 @@ type dailyCount struct {
 }
 
 // GetCTAAnalytics returns CTA click analytics for admin dashboard.
-// GET /api/v1/admin/cta-analytics?days=30
+// @Summary Obter analytics de CTA
+// @Description Retorna estatísticas de cliques em CTA para o dashboard admin
+// @Tags analytics
+// @Produce json
+// @Security BearerAuth
+// @Param days query int false "Período em dias (padrão 30, máx 365)"
+// @Success 200 {object} ctaAnalyticsResponse
+// @Failure 401 {string} string "Unauthorized"
+// @Router /admin/cta-analytics [get]
 func GetCTAAnalytics(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
