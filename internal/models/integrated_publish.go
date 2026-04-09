@@ -25,8 +25,11 @@ type IntegratedPublish struct {
 	// Instagram result
 	IGMediaID string `json:"ig_media_id,omitempty" bson:"ig_media_id,omitempty"`
 
-	// Meta Ads campaign config
+	// Meta Ads campaign config — used when creating a NEW campaign
 	Campaign IntegratedCampaignConfig `json:"campaign" bson:"campaign"`
+
+	// Existing campaign — when reusing an active campaign instead of creating new
+	ExistingCampaignID string `json:"existing_campaign_id,omitempty" bson:"existing_campaign_id,omitempty"`
 
 	// Meta Ads result
 	MetaCampaignID string `json:"meta_campaign_id,omitempty" bson:"meta_campaign_id,omitempty"`
@@ -65,6 +68,8 @@ type CreateIntegratedPublishRequest struct {
 	ImageIDs    []string                 `json:"image_ids"`
 	ScheduledAt string                   `json:"scheduled_at"` // ISO 8601
 	Campaign    IntegratedCampaignConfig `json:"campaign"`
+	// When reusing an existing campaign, send existing_campaign_id instead of campaign config
+	ExistingCampaignID string `json:"existing_campaign_id,omitempty"`
 }
 
 type IntegratedPublishResponse struct {

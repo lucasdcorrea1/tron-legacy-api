@@ -59,7 +59,8 @@ type InstagramScheduleListResponse struct {
 	Limit     int                         `json:"limit"`
 }
 
-// InstagramConfig stores per-user Instagram credentials in the database
+// InstagramConfig stores per-account Instagram credentials in the database.
+// Multiple records per org are allowed (one per IG account).
 type InstagramConfig struct {
 	ID                 primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	UserID             primitive.ObjectID `json:"user_id" bson:"user_id"`
@@ -70,6 +71,7 @@ type InstagramConfig struct {
 	PageName           string             `json:"page_name,omitempty" bson:"page_name,omitempty"`
 	AdAccountID        string             `json:"ad_account_id,omitempty" bson:"ad_account_id,omitempty"`
 	BusinessID         string             `json:"business_id,omitempty" bson:"business_id,omitempty"`
+	IsPrimary          bool               `json:"is_primary" bson:"is_primary"`
 	CreatedAt          time.Time          `json:"created_at" bson:"created_at"`
 	UpdatedAt          time.Time          `json:"updated_at" bson:"updated_at"`
 }

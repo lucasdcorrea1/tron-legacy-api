@@ -187,6 +187,7 @@ func New() http.Handler {
 	mux.Handle("GET /api/v1/admin/instagram/config", orgRoutePlan("starter", "owner", "admin", "member")(http.HandlerFunc(handlers.GetInstagramConfig)))
 	mux.Handle("PUT /api/v1/admin/instagram/config", orgRoutePlan("starter", "owner", "admin")(http.HandlerFunc(handlers.SaveInstagramConfig)))
 	mux.Handle("DELETE /api/v1/admin/instagram/config", orgRoutePlan("starter", "owner", "admin")(http.HandlerFunc(handlers.DeleteInstagramConfig)))
+	mux.Handle("GET /api/v1/admin/instagram/connected-accounts", orgRoutePlan("starter", "owner", "admin", "member")(http.HandlerFunc(handlers.ListConnectedIGAccounts)))
 	mux.Handle("GET /api/v1/admin/instagram/test", orgRoutePlan("starter", "owner", "admin")(http.HandlerFunc(handlers.TestInstagramConnection)))
 	mux.Handle("GET /api/v1/admin/instagram/accounts", orgRoutePlan("starter", "owner", "admin", "member")(http.HandlerFunc(handlers.ListInstagramAccounts)))
 	mux.Handle("GET /api/v1/admin/instagram/feed", orgRoutePlan("starter", "owner", "admin", "member")(http.HandlerFunc(handlers.GetInstagramFeed)))

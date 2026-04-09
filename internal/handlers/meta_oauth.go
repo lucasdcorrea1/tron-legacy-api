@@ -144,29 +144,18 @@ func MetaOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		// Not fatal — user can configure manually later
 	}
 
-	// Pick first account to auto-configure (if multiple, frontend lets user choose)
-	var igAccountID, businessID, igUsername, igPageName string
-	if len(igAccounts) > 0 {
-		igAccountID = igAccounts[0].IGAccountID
-		businessID = igAccounts[0].PageID
-		igUsername = igAccounts[0].Username
-		igPageName = igAccounts[0].PageName
-	}
-
 	// Step 4: Fetch ad accounts (all of them)
 	adAccounts, err := fetchAdAccounts(longToken)
 	if err != nil {
 		slog.Warn("meta_oauth_fetch_ad_accounts_failed", "error", err)
-		// Not fatal — user might not have ad accounts
 	}
 
-	// Pick first as default
 	var adAccountID string
 	if len(adAccounts) > 0 {
 		adAccountID = adAccounts[0].AccountID
 	}
 
-	// Step 5: Encrypt and save
+	// Step 5: Encrypt and save — one record per IG account (all share the same token)
 	tokenEnc, err := crypto.Encrypt(longToken)
 	if err != nil {
 		slog.Error("meta_oauth_encrypt_failed", "error", err)
@@ -178,41 +167,68 @@ func MetaOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	now := time.Now()
-	filter := bson.M{"org_id": orgID}
-	setFields := bson.M{
-		"access_token_enc": tokenEnc,
-		"updated_at":       now,
-	}
-	if igAccountID != "" {
-		setFields["instagram_account_id"] = igAccountID
-	}
-	if businessID != "" {
-		setFields["business_id"] = businessID
-	}
-	if igUsername != "" {
-		setFields["username"] = igUsername
-	}
-	if igPageName != "" {
-		setFields["page_name"] = igPageName
-	}
-	if adAccountID != "" {
-		setFields["ad_account_id"] = adAccountID
+
+	// Check if org already has any IG accounts connected
+	existingCount, _ := database.InstagramConfigs().CountDocuments(ctx, bson.M{"org_id": orgID})
+
+	var igAccountID string
+	for i, acc := range igAccounts {
+		if acc.IGAccountID == "" {
+			continue
+		}
+
+		// First account of a fresh org becomes primary
+		isPrimary := existingCount == 0 && i == 0
+
+		filter := bson.M{"org_id": orgID, "instagram_account_id": acc.IGAccountID}
+		setFields := bson.M{
+			"access_token_enc": tokenEnc,
+			"username":         acc.Username,
+			"page_name":        acc.PageName,
+			"business_id":      acc.PageID,
+			"updated_at":       now,
+		}
+		if adAccountID != "" {
+			setFields["ad_account_id"] = adAccountID
+		}
+
+		update := bson.M{
+			"$set": setFields,
+			"$setOnInsert": bson.M{
+				"user_id":    userID,
+				"org_id":     orgID,
+				"is_primary": isPrimary,
+				"created_at": now,
+			},
+		}
+		opts := options.Update().SetUpsert(true)
+		_, err = database.InstagramConfigs().UpdateOne(ctx, filter, update, opts)
+		if err != nil {
+			slog.Error("meta_oauth_save_account_failed", "error", err, "ig_account_id", acc.IGAccountID)
+		}
+
+		if i == 0 {
+			igAccountID = acc.IGAccountID
+		}
 	}
 
-	update := bson.M{
-		"$set": setFields,
-		"$setOnInsert": bson.M{
-			"user_id":    userID,
-			"org_id":     orgID,
-			"created_at": now,
-		},
-	}
-	opts := options.Update().SetUpsert(true)
-	_, err = database.InstagramConfigs().UpdateOne(ctx, filter, update, opts)
-	if err != nil {
-		slog.Error("meta_oauth_save_failed", "error", err)
-		http.Error(w, "Falha ao salvar configuracao", http.StatusInternalServerError)
-		return
+	// Fallback: if no IG accounts found, still save the token for manual config
+	if len(igAccounts) == 0 {
+		filter := bson.M{"org_id": orgID, "instagram_account_id": ""}
+		update := bson.M{
+			"$set": bson.M{
+				"access_token_enc": tokenEnc,
+				"updated_at":       now,
+			},
+			"$setOnInsert": bson.M{
+				"user_id":    userID,
+				"org_id":     orgID,
+				"is_primary": true,
+				"created_at": now,
+			},
+		}
+		opts := options.Update().SetUpsert(true)
+		database.InstagramConfigs().UpdateOne(ctx, filter, update, opts)
 	}
 
 	// Step 6: Also save Facebook Page config (using page access token for direct posting)
@@ -242,7 +258,8 @@ func MetaOAuthCallback(w http.ResponseWriter, r *http.Request) {
 						"created_at": now,
 					},
 				}
-				_, fbSaveErr := database.FacebookConfigs().UpdateOne(ctx, fbFilter, fbUpdate, opts)
+				fbOpts := options.Update().SetUpsert(true)
+				_, fbSaveErr := database.FacebookConfigs().UpdateOne(ctx, fbFilter, fbUpdate, fbOpts)
 				if fbSaveErr != nil {
 					slog.Warn("meta_oauth_fb_save_failed", "error", fbSaveErr)
 				} else {
@@ -260,6 +277,11 @@ func MetaOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	needsSelection := len(igAccounts) > 1
 	needsAdAccountSelection := len(adAccounts) > 1
 
+	var firstBusinessID string
+	if len(igAccounts) > 0 {
+		firstBusinessID = igAccounts[0].PageID
+	}
+
 	slog.Info("meta_oauth_connected",
 		"org_id", orgID.Hex(),
 		"ig_account_id", igAccountID,
@@ -274,7 +296,7 @@ func MetaOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		"success":                    true,
 		"instagram_account_id":       maskID(igAccountID),
 		"ad_account_id":              maskID(adAccountID),
-		"business_id":                maskID(businessID),
+		"business_id":                maskID(firstBusinessID),
 		"needs_manual_config":        needsManualConfig,
 		"needs_selection":            needsSelection,
 		"needs_ad_account_selection": needsAdAccountSelection,

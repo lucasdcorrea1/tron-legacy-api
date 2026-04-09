@@ -281,9 +281,12 @@ func EnsureIndexes() error {
 		return err
 	}
 
-	// instagram_configs: unique index on org_id (one config per org)
+	// Migration: drop old unique index on org_id alone (was one-account-per-org)
+	InstagramConfigs().Indexes().DropOne(ctx, "org_id_1")
+
+	// instagram_configs: compound unique (one record per IG account per org, allows multiple accounts)
 	_, err = InstagramConfigs().Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys:    bson.D{{Key: "org_id", Value: 1}},
+		Keys:    bson.D{{Key: "org_id", Value: 1}, {Key: "instagram_account_id", Value: 1}},
 		Options: options.Index().SetUnique(true),
 	})
 	if err != nil {

@@ -77,26 +77,34 @@ func CreateIntegratedPublish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate campaign fields
-	if req.Campaign.Name == "" {
-		http.Error(w, "campaign.name is required", http.StatusBadRequest)
-		return
-	}
-	if req.Campaign.Objective == "" {
-		http.Error(w, "campaign.objective is required", http.StatusBadRequest)
-		return
-	}
-	if req.Campaign.DailyBudget <= 0 {
-		http.Error(w, "campaign.daily_budget must be > 0 (in cents)", http.StatusBadRequest)
-		return
-	}
-	if req.Campaign.DurationDays <= 0 {
-		http.Error(w, "campaign.duration_days must be > 0", http.StatusBadRequest)
-		return
-	}
-	if req.Campaign.Objective == "OUTCOME_TRAFFIC" && req.Campaign.Creative.LinkURL == "" {
-		http.Error(w, "campaign.creative.link_url is required for TRAFFIC objective", http.StatusBadRequest)
-		return
+	// Validate campaign fields — only required when NOT reusing an existing campaign
+	useExisting := req.ExistingCampaignID != ""
+	if !useExisting {
+		if req.Campaign.Name == "" {
+			http.Error(w, "campaign.name is required", http.StatusBadRequest)
+			return
+		}
+		if req.Campaign.Objective == "" {
+			http.Error(w, "campaign.objective is required", http.StatusBadRequest)
+			return
+		}
+		if req.Campaign.DailyBudget <= 0 {
+			http.Error(w, "campaign.daily_budget must be > 0 (in cents)", http.StatusBadRequest)
+			return
+		}
+		if req.Campaign.DurationDays <= 0 {
+			http.Error(w, "campaign.duration_days must be > 0", http.StatusBadRequest)
+			return
+		}
+		if req.Campaign.Objective == "OUTCOME_TRAFFIC" && req.Campaign.Creative.LinkURL == "" {
+			http.Error(w, "campaign.creative.link_url is required for TRAFFIC objective", http.StatusBadRequest)
+			return
+		}
+	} else {
+		// When reusing, we still need duration_days and targeting for the ad set
+		if req.Campaign.DurationDays <= 0 {
+			req.Campaign.DurationDays = 7
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -130,17 +138,18 @@ func CreateIntegratedPublish(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now()
 	pub := models.IntegratedPublish{
-		ID:          primitive.NewObjectID(),
-		UserID:      userID,
-		OrgID:       orgID,
-		Caption:     req.Caption,
-		MediaType:   req.MediaType,
-		ImageIDs:    req.ImageIDs,
-		ScheduledAt: scheduledAt,
-		Status:      "scheduled",
-		Campaign:    req.Campaign,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		ID:                 primitive.NewObjectID(),
+		UserID:             userID,
+		OrgID:              orgID,
+		Caption:            req.Caption,
+		MediaType:          req.MediaType,
+		ImageIDs:           req.ImageIDs,
+		ScheduledAt:        scheduledAt,
+		Status:             "scheduled",
+		Campaign:           req.Campaign,
+		ExistingCampaignID: req.ExistingCampaignID,
+		CreatedAt:          now,
+		UpdatedAt:          now,
 	}
 
 	if _, err := database.IntegratedPublishes().InsertOne(ctx, pub); err != nil {
@@ -504,26 +513,57 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 		slog.Info("integrated_publish_resolved_ids", "id", pub.ID.Hex(), "fb_page_id", fbPageID, "ig_actor_id", igActorID)
 	}
 
-	// Step 2a: Create Campaign (with Campaign Budget Optimization)
-	campaignParams := url.Values{}
-	campaignParams.Set("name", pub.Campaign.Name)
-	campaignParams.Set("objective", pub.Campaign.Objective)
-	campaignParams.Set("status", "ACTIVE")
-	campaignParams.Set("special_ad_categories", "NONE")
-	campaignParams.Set("daily_budget", fmt.Sprintf("%d", pub.Campaign.DailyBudget))
-	campaignParams.Set("bid_strategy", "LOWEST_COST_WITHOUT_CAP")
+	// Step 2a: Create Campaign or reuse existing
+	var metaCampaignID string
+	var campaignObjective string
 
-	campaignResult, err := metaGraphPost(accountPath+"/campaigns", adsCreds.Token, campaignParams)
-	if err != nil {
-		slog.Error("integrated_publish_campaign_error", "id", pub.ID.Hex(), "error", err)
-		ipUpdateStatus(ctx, pub.ID, "failed", "Campaign creation failed: "+err.Error(), "ads")
-		return
+	if pub.ExistingCampaignID != "" {
+		// Reuse existing campaign — fetch its details to get the objective
+		metaCampaignID = pub.ExistingCampaignID
+		campaignObjective = pub.Campaign.Objective // from request, may be empty
+
+		// Fetch the campaign from Meta to get objective if not provided
+		fetchParams := url.Values{}
+		fetchParams.Set("fields", "id,name,objective,status")
+		campaignInfo, err := metaGraphGet(metaCampaignID, adsCreds.Token, fetchParams)
+		if err != nil {
+			slog.Error("integrated_publish_fetch_campaign_error", "id", pub.ID.Hex(), "campaign_id", metaCampaignID, "error", err)
+			ipUpdateStatus(ctx, pub.ID, "failed", "Failed to fetch existing campaign: "+err.Error(), "ads")
+			return
+		}
+		if obj, ok := campaignInfo["objective"].(string); ok && obj != "" {
+			campaignObjective = obj
+		}
+
+		slog.Info("integrated_publish_reusing_campaign", "id", pub.ID.Hex(), "campaign_id", metaCampaignID, "objective", campaignObjective)
+
+		database.IntegratedPublishes().UpdateOne(ctx, bson.M{"_id": pub.ID}, bson.M{
+			"$set": bson.M{"meta_campaign_id": metaCampaignID, "updated_at": time.Now()},
+		})
+	} else {
+		// Create new campaign
+		campaignObjective = pub.Campaign.Objective
+
+		campaignParams := url.Values{}
+		campaignParams.Set("name", pub.Campaign.Name)
+		campaignParams.Set("objective", campaignObjective)
+		campaignParams.Set("status", "ACTIVE")
+		campaignParams.Set("special_ad_categories", "NONE")
+		campaignParams.Set("daily_budget", fmt.Sprintf("%d", pub.Campaign.DailyBudget))
+		campaignParams.Set("bid_strategy", "LOWEST_COST_WITHOUT_CAP")
+
+		campaignResult, err := metaGraphPost(accountPath+"/campaigns", adsCreds.Token, campaignParams)
+		if err != nil {
+			slog.Error("integrated_publish_campaign_error", "id", pub.ID.Hex(), "error", err)
+			ipUpdateStatus(ctx, pub.ID, "failed", "Campaign creation failed: "+err.Error(), "ads")
+			return
+		}
+		metaCampaignID, _ = campaignResult["id"].(string)
+
+		database.IntegratedPublishes().UpdateOne(ctx, bson.M{"_id": pub.ID}, bson.M{
+			"$set": bson.M{"meta_campaign_id": metaCampaignID, "updated_at": time.Now()},
+		})
 	}
-	metaCampaignID, _ := campaignResult["id"].(string)
-
-	database.IntegratedPublishes().UpdateOne(ctx, bson.M{"_id": pub.ID}, bson.M{
-		"$set": bson.M{"meta_campaign_id": metaCampaignID, "updated_at": time.Now()},
-	})
 
 	// Step 2b: Create Ad Set
 	startTime := time.Now().Add(1 * time.Hour)
@@ -531,13 +571,18 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 
 	targetingJSON, _ := json.Marshal(buildMetaTargeting(pub.Campaign.Targeting))
 
+	adsetName := pub.Campaign.Name
+	if adsetName == "" {
+		adsetName = "Post " + pub.ID.Hex()[:8]
+	}
+
 	adsetParams := url.Values{}
 	adsetParams.Set("campaign_id", metaCampaignID)
-	adsetParams.Set("name", pub.Campaign.Name+" - Ad Set")
+	adsetParams.Set("name", adsetName+" - Ad Set")
 	adsetParams.Set("billing_event", "IMPRESSIONS")
 	// Match optimization goal to campaign objective
 	optGoal := "REACH"
-	switch pub.Campaign.Objective {
+	switch campaignObjective {
 	case "OUTCOME_TRAFFIC":
 		optGoal = "LANDING_PAGE_VIEWS"
 		promotedObj, _ := json.Marshal(map[string]string{"page_id": fbPageID})
@@ -572,9 +617,9 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 
 	// Step 2c: Create Ad Creative using the published IG post
 	creativeParams := url.Values{}
-	creativeParams.Set("name", pub.Campaign.Name+" Creative")
+	creativeParams.Set("name", adsetName+" Creative")
 
-	if pub.Campaign.Objective == "OUTCOME_TRAFFIC" {
+	if campaignObjective == "OUTCOME_TRAFFIC" {
 		// TRAFFIC: use object_story_spec with page_id + instagram_actor_id + link_data
 		cta := pub.Campaign.Creative.CallToAction
 		if cta == "" {
@@ -637,7 +682,7 @@ func processIntegratedPublish(ctx context.Context, pub models.IntegratedPublish)
 
 	// Step 2d: Create Ad
 	adParams := url.Values{}
-	adParams.Set("name", pub.Campaign.Name+" - Ad")
+	adParams.Set("name", adsetName+" - Ad")
 	adParams.Set("adset_id", metaAdSetID)
 	adParams.Set("status", "ACTIVE")
 	adParams.Set("creative", fmt.Sprintf(`{"creative_id":"%s"}`, creativeID))

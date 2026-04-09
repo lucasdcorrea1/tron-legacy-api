@@ -84,10 +84,14 @@ type instagramCredentials struct {
 
 // getInstagramCredentials resolves credentials: DB per-org config first, then env vars fallback (only when no org context).
 func getInstagramCredentials(ctx context.Context, userID, orgID primitive.ObjectID) (*instagramCredentials, error) {
-	// Try per-org config from DB
+	// Try per-org config from DB — prefer primary account
 	if orgID != primitive.NilObjectID && crypto.Available() {
 		var cfg models.InstagramConfig
-		err := database.InstagramConfigs().FindOne(ctx, bson.M{"org_id": orgID}).Decode(&cfg)
+		err := database.InstagramConfigs().FindOne(ctx, bson.M{"org_id": orgID, "is_primary": true}).Decode(&cfg)
+		if err == mongo.ErrNoDocuments {
+			// Fallback: any config for this org (migration compat)
+			err = database.InstagramConfigs().FindOne(ctx, bson.M{"org_id": orgID}).Decode(&cfg)
+		}
 		if err == nil {
 			token, err := crypto.Decrypt(cfg.AccessTokenEnc)
 			if err != nil {
@@ -226,10 +230,14 @@ func GetInstagramConfig(w http.ResponseWriter, r *http.Request) {
 		resp.Source = creds.Source
 	}
 
-	// If source is "user", also load Meta Ads fields from the same config
+	// If source is "user", also load Meta Ads fields from the primary config
 	if creds != nil && creds.Source == "user" && orgID != primitive.NilObjectID {
 		var cfg models.InstagramConfig
-		err := database.InstagramConfigs().FindOne(ctx, bson.M{"org_id": orgID}).Decode(&cfg)
+		err := database.InstagramConfigs().FindOne(ctx, bson.M{"org_id": orgID, "is_primary": true}).Decode(&cfg)
+		if err != nil {
+			// Fallback: find any config for the org
+			err = database.InstagramConfigs().FindOne(ctx, bson.M{"org_id": orgID}).Decode(&cfg)
+		}
 		if err == nil {
 			if cfg.AdAccountID != "" {
 				resp.AdAccountID = maskAccountID(cfg.AdAccountID)
@@ -324,99 +332,77 @@ func SaveInstagramConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now()
-	filter := bson.M{"org_id": orgID}
-	setFields := bson.M{
-		"updated_at": now,
-	}
 
-	// Update credentials if provided
-	var plainToken string
+	// When switching primary account — update is_primary flag
 	if req.InstagramAccountID != "" {
-		setFields["instagram_account_id"] = req.InstagramAccountID
-	}
-	if req.AccessToken != "" {
-		// Try to exchange for a long-lived token
-		longToken, err := ExchangeForLongLivedToken(req.AccessToken)
-		if err != nil {
-			slog.Warn("long_lived_token_exchange_failed, using original token", "error", err)
-			longToken = req.AccessToken
-		} else {
-			slog.Info("successfully exchanged for long-lived token")
-		}
-		plainToken = longToken
-		encToken, err := crypto.Encrypt(longToken)
-		if err != nil {
-			slog.Error("encrypt_token_error", "error", err)
-			http.Error(w, "Error encrypting token", http.StatusInternalServerError)
-			return
-		}
-		setFields["access_token_enc"] = encToken
-	}
+		// Unset all primary flags for this org
+		database.InstagramConfigs().UpdateMany(ctx, bson.M{"org_id": orgID}, bson.M{"$set": bson.M{"is_primary": false}})
 
-	// If creating a new DB record from env credentials, seed with env values
-	if !dbConfigExists && creds != nil {
-		if req.InstagramAccountID == "" {
-			setFields["instagram_account_id"] = creds.AccountID
+		// Set the selected account as primary
+		filter := bson.M{"org_id": orgID, "instagram_account_id": req.InstagramAccountID}
+		setFields := bson.M{
+			"is_primary": true,
+			"updated_at": now,
 		}
-		if req.AccessToken == "" {
-			encToken, err := crypto.Encrypt(creds.Token)
+		if req.AdAccountID != "" {
+			setFields["ad_account_id"] = req.AdAccountID
+		}
+		if req.BusinessID != "" {
+			setFields["business_id"] = req.BusinessID
+		}
+
+		// Handle manual token input (manual config flow)
+		if req.AccessToken != "" {
+			longToken, err := ExchangeForLongLivedToken(req.AccessToken)
 			if err != nil {
-				slog.Error("encrypt_token_error", "error", err)
+				slog.Warn("long_lived_token_exchange_failed, using original token", "error", err)
+				longToken = req.AccessToken
+			}
+			encToken, err := crypto.Encrypt(longToken)
+			if err != nil {
 				http.Error(w, "Error encrypting token", http.StatusInternalServerError)
 				return
 			}
 			setFields["access_token_enc"] = encToken
 		}
-	}
 
-	// Update Meta Ads fields
-	if req.AdAccountID != "" {
-		setFields["ad_account_id"] = req.AdAccountID
-	}
-	if req.BusinessID != "" {
-		setFields["business_id"] = req.BusinessID
-	}
-
-	// Fetch IG username and page_name from Meta API if we have a token
-	if plainToken != "" {
-		effectiveIGID := req.InstagramAccountID
-		if effectiveIGID == "" && dbConfigExists {
-			effectiveIGID = existing.InstagramAccountID
+		update := bson.M{
+			"$set": setFields,
+			"$setOnInsert": bson.M{
+				"user_id":    userID,
+				"org_id":     orgID,
+				"created_at": now,
+			},
 		}
-		if effectiveIGID != "" {
-			if accounts, _, fetchErr := fetchInstagramAccounts(plainToken); fetchErr == nil {
-				for _, acc := range accounts {
-					if acc.IGAccountID == effectiveIGID {
-						if acc.Username != "" {
-							setFields["username"] = acc.Username
-						}
-						if acc.PageName != "" {
-							setFields["page_name"] = acc.PageName
-						}
-						break
-					}
-				}
-			} else {
-				slog.Warn("save_config_fetch_ig_profile_failed", "error", fetchErr)
-			}
+		opts := options.Update().SetUpsert(true)
+		_, dbErr := database.InstagramConfigs().UpdateOne(ctx, filter, update, opts)
+		if dbErr != nil {
+			slog.Error("save_instagram_config_error", "error", dbErr)
+			http.Error(w, "Error saving config", http.StatusInternalServerError)
+			return
 		}
-	}
-
-	update := bson.M{
-		"$set": setFields,
-		"$setOnInsert": bson.M{
-			"user_id":    userID,
-			"org_id":     orgID,
-			"created_at": now,
-		},
-	}
-	opts := options.Update().SetUpsert(true)
-
-	_, dbErr := database.InstagramConfigs().UpdateOne(ctx, filter, update, opts)
-	if dbErr != nil {
-		slog.Error("save_instagram_config_error", "error", dbErr)
-		http.Error(w, "Error saving config", http.StatusInternalServerError)
-		return
+	} else if !dbConfigExists && creds != nil {
+		// Seeding from env — create first record
+		encToken, err := crypto.Encrypt(creds.Token)
+		if err != nil {
+			http.Error(w, "Error encrypting token", http.StatusInternalServerError)
+			return
+		}
+		filter := bson.M{"org_id": orgID, "instagram_account_id": creds.AccountID}
+		update := bson.M{
+			"$set": bson.M{
+				"access_token_enc": encToken,
+				"is_primary":       true,
+				"updated_at":       now,
+			},
+			"$setOnInsert": bson.M{
+				"user_id":    userID,
+				"org_id":     orgID,
+				"created_at": now,
+			},
+		}
+		opts := options.Update().SetUpsert(true)
+		database.InstagramConfigs().UpdateOne(ctx, filter, update, opts)
 	}
 
 	slog.Info("instagram_config_saved",
@@ -457,14 +443,26 @@ func DeleteInstagramConfig(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	// If account_id is provided, delete only that account; otherwise delete all
+	accountID := r.URL.Query().Get("account_id")
 	filter := bson.M{"org_id": orgID}
+	if accountID != "" {
+		filter["instagram_account_id"] = accountID
+	}
 
 	slog.Info("instagram_config_deleting",
 		"user_id", userID.Hex(),
 		"org_id", orgID.Hex(),
+		"account_id", accountID,
 	)
 
-	result, err := database.InstagramConfigs().DeleteOne(ctx, filter)
+	var result *mongo.DeleteResult
+	var err error
+	if accountID != "" {
+		result, err = database.InstagramConfigs().DeleteOne(ctx, filter)
+	} else {
+		result, err = database.InstagramConfigs().DeleteMany(ctx, filter)
+	}
 	if err != nil {
 		slog.Error("delete_instagram_config_error", "error", err)
 		http.Error(w, "Error deleting config", http.StatusInternalServerError)
@@ -476,6 +474,16 @@ func DeleteInstagramConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If we deleted the primary, promote the next one
+	if accountID != "" {
+		var anyConfig models.InstagramConfig
+		if err := database.InstagramConfigs().FindOne(ctx, bson.M{"org_id": orgID, "is_primary": true}).Decode(&anyConfig); err == mongo.ErrNoDocuments {
+			// No primary left — promote the first remaining
+			database.InstagramConfigs().UpdateOne(ctx, bson.M{"org_id": orgID},
+				bson.M{"$set": bson.M{"is_primary": true}})
+		}
+	}
+
 	slog.Info("instagram_config_deleted",
 		"user_id", userID.Hex(),
 		"org_id", orgID.Hex(),
@@ -483,6 +491,39 @@ func DeleteInstagramConfig(w http.ResponseWriter, r *http.Request) {
 	)
 
 	json.NewEncoder(w).Encode(map[string]string{"message": "Config deleted"})
+}
+
+// ListConnectedIGAccounts returns all Instagram accounts connected to the org.
+func ListConnectedIGAccounts(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrgID(r)
+	if orgID == primitive.NilObjectID {
+		http.Error(w, "Organization context required", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cursor, err := database.InstagramConfigs().Find(ctx, bson.M{
+		"org_id":              orgID,
+		"instagram_account_id": bson.M{"$ne": ""},
+	})
+	if err != nil {
+		http.Error(w, "Error listing accounts", http.StatusInternalServerError)
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var accounts []models.InstagramConfig
+	cursor.All(ctx, &accounts)
+	if accounts == nil {
+		accounts = []models.InstagramConfig{}
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"accounts": accounts,
+		"total":    len(accounts),
+	})
 }
 
 // TestInstagramConnection verifies credentials by fetching account info (read-only, no publish)
