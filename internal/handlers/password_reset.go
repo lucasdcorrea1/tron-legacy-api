@@ -192,8 +192,8 @@ func ResetPassword(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Token é obrigatório"})
 		return
 	}
-	if len(req.NewPassword) < 6 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Senha deve ter no mínimo 6 caracteres"})
+	if msg := models.ValidatePassword(req.NewPassword); msg != "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": msg})
 		return
 	}
 

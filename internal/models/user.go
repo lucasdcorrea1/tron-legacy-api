@@ -244,6 +244,35 @@ func init() {
 	}
 }
 
+// ValidatePassword checks password strength requirements.
+// Returns an error message if invalid, empty string if OK.
+func ValidatePassword(password string) string {
+	if len(password) < 8 {
+		return "A senha deve ter pelo menos 8 caracteres"
+	}
+	var hasUpper, hasLower, hasDigit bool
+	for _, c := range password {
+		switch {
+		case c >= 'A' && c <= 'Z':
+			hasUpper = true
+		case c >= 'a' && c <= 'z':
+			hasLower = true
+		case c >= '0' && c <= '9':
+			hasDigit = true
+		}
+	}
+	if !hasUpper {
+		return "A senha deve conter pelo menos uma letra maiúscula"
+	}
+	if !hasLower {
+		return "A senha deve conter pelo menos uma letra minúscula"
+	}
+	if !hasDigit {
+		return "A senha deve conter pelo menos um número"
+	}
+	return ""
+}
+
 // HashPassword generates bcrypt hash from password
 func HashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 12)

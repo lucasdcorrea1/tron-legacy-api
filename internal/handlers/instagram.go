@@ -156,9 +156,25 @@ func requireInstagramCreds(w http.ResponseWriter, r *http.Request) (primitive.Ob
 		return primitive.NilObjectID, nil, false
 	}
 
-	// Allow override via query param (multi-account support)
+	// Allow override via query param — but ONLY if the account belongs to this org
 	if override := r.URL.Query().Get("instagram_account_id"); override != "" {
-		creds.AccountID = override
+		orgID := middleware.GetOrgID(r)
+		if orgID != primitive.NilObjectID {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			count, _ := database.InstagramConfigs().CountDocuments(ctx, bson.M{
+				"org_id":               orgID,
+				"instagram_account_id": override,
+			})
+			if count > 0 {
+				creds.AccountID = override
+			} else {
+				slog.Warn("instagram_account_override_blocked",
+					"requested", override,
+					"org_id", orgID.Hex(),
+				)
+			}
+		}
 	}
 
 	return userID, creds, true
@@ -191,9 +207,11 @@ func ListInstagramAccounts(w http.ResponseWriter, r *http.Request) {
 		accounts = []igAccount{}
 	}
 
+	// Return the org's configured account ID so frontend can highlight/filter
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"data":   accounts,
-		"reason": reason,
+		"data":                   accounts,
+		"reason":                 reason,
+		"configured_account_id":  creds.AccountID,
 	})
 }
 
@@ -1459,10 +1477,25 @@ func ProcessScheduledInstagramPosts() {
 	}
 
 	for _, schedule := range schedules {
+		// Skip posts without org context — safety guard
+		if schedule.OrgID == primitive.NilObjectID {
+			slog.Error("instagram_scheduler_skip_no_org", "schedule_id", schedule.ID.Hex())
+			database.InstagramSchedules().UpdateOne(ctx, bson.M{"_id": schedule.ID}, bson.M{
+				"$set": bson.M{"status": "failed", "error_message": "missing org_id", "updated_at": time.Now()},
+			})
+			continue
+		}
+
 		// Set status to publishing
 		database.InstagramSchedules().UpdateOne(ctx, bson.M{"_id": schedule.ID}, bson.M{
 			"$set": bson.M{"status": "publishing", "updated_at": time.Now()},
 		})
+
+		slog.Info("instagram_scheduler_publishing",
+			"schedule_id", schedule.ID.Hex(),
+			"org_id", schedule.OrgID.Hex(),
+			"user_id", schedule.UserID.Hex(),
+		)
 
 		mediaID, err := publishToInstagram(schedule)
 		if err != nil {

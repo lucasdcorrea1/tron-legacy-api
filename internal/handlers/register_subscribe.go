@@ -56,8 +56,8 @@ func RegisterAndSubscribe(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"Nome, email e senha são obrigatórios"}`, http.StatusBadRequest)
 		return
 	}
-	if len(req.Password) < 6 {
-		http.Error(w, `{"message":"A senha deve ter pelo menos 6 caracteres"}`, http.StatusBadRequest)
+	if msg := models.ValidatePassword(req.Password); msg != "" {
+		http.Error(w, `{"message":"`+msg+`"}`, http.StatusBadRequest)
 		return
 	}
 

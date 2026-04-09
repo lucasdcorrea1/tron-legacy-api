@@ -43,8 +43,8 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(req.Password) < 6 {
-		http.Error(w, "Password must be at least 6 characters", http.StatusBadRequest)
+	if msg := models.ValidatePassword(req.Password); msg != "" {
+		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
 
