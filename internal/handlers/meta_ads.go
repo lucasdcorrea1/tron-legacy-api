@@ -121,6 +121,134 @@ func requireMetaAdsCreds(w http.ResponseWriter, r *http.Request) (primitive.Obje
 	return userID, creds, true
 }
 
+// ── Meta Ads Config CRUD ───────────────────────────────────────────
+
+func GetMetaAdsConfig(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r)
+	orgID := middleware.GetOrgID(r)
+	if userID == primitive.NilObjectID {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	creds, _ := getMetaAdsCredentials(ctx, userID, orgID)
+	if creds == nil {
+		json.NewEncoder(w).Encode(models.MetaAdsConfigResponse{Configured: false})
+		return
+	}
+
+	json.NewEncoder(w).Encode(models.MetaAdsConfigResponse{
+		Configured:  true,
+		AdAccountID: creds.AdAccountID,
+		Source:      creds.Source,
+	})
+}
+
+func SaveMetaAdsConfig(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r)
+	orgID := middleware.GetOrgID(r)
+	if userID == primitive.NilObjectID || orgID == primitive.NilObjectID {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if !crypto.Available() {
+		http.Error(w, "Encryption not configured", http.StatusInternalServerError)
+		return
+	}
+
+	var req models.SaveMetaAdsConfigRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.AdAccountID == "" || req.AccessToken == "" {
+		http.Error(w, "ad_account_id and access_token are required", http.StatusBadRequest)
+		return
+	}
+
+	encToken, err := crypto.Encrypt(req.AccessToken)
+	if err != nil {
+		slog.Error("meta_ads_config_encrypt_error", "error", err)
+		http.Error(w, "Encryption error", http.StatusInternalServerError)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	now := time.Now()
+	filter := bson.M{"org_id": orgID}
+	update := bson.M{
+		"$set": bson.M{
+			"user_id":          userID,
+			"org_id":           orgID,
+			"ad_account_id":    req.AdAccountID,
+			"business_id":      req.BusinessID,
+			"access_token_enc": encToken,
+			"updated_at":       now,
+		},
+		"$setOnInsert": bson.M{"created_at": now},
+	}
+	opts := options.Update().SetUpsert(true)
+
+	if _, err := database.MetaAdsConfigs().UpdateOne(ctx, filter, update, opts); err != nil {
+		slog.Error("meta_ads_config_save_error", "error", err)
+		http.Error(w, "Error saving config", http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("meta_ads_config_saved", "org_id", orgID.Hex(), "ad_account_id", req.AdAccountID)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Meta Ads config saved"})
+}
+
+func DeleteMetaAdsConfig(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrgID(r)
+	if orgID == primitive.NilObjectID {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if _, err := database.MetaAdsConfigs().DeleteOne(ctx, bson.M{"org_id": orgID}); err != nil {
+		http.Error(w, "Error deleting config", http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("meta_ads_config_deleted", "org_id", orgID.Hex())
+	json.NewEncoder(w).Encode(map[string]string{"message": "Meta Ads config deleted"})
+}
+
+func TestMetaAdsConnection(w http.ResponseWriter, r *http.Request) {
+	_, creds, ok := requireMetaAdsCreds(w, r)
+	if !ok {
+		return
+	}
+
+	result, err := metaGraphGet(adAccountPath(creds.AdAccountID), creds.Token, url.Values{
+		"fields": {"account_id", "name", "currency", "account_status"},
+	})
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":      true,
+		"account_id":   result["account_id"],
+		"account_name": result["name"],
+		"currency":     result["currency"],
+	})
+}
+
 // metaGraphGet does a GET to the Meta Graph API and decodes the response.
 func metaGraphGet(endpoint, token string, params url.Values) (map[string]interface{}, error) {
 	if params == nil {
