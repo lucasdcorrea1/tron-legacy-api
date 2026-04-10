@@ -16,6 +16,9 @@ primary_region = 'gru'
   min_machines_running = 1
   processes = ['app']
 
+[env]
+  CONTABIL_API_URL = 'https://whodo-contabil-api.fly.dev'
+
 [[vm]]
   memory = '1gb'
   cpus = 1
