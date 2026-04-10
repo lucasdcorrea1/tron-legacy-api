@@ -828,13 +828,22 @@ func InviteMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Send invitation email
+	// Send invitation email — synchronous so we can return errors to the user
 	var org models.Organization
 	orgName := "a organização"
 	if err := database.Organizations().FindOne(ctx, bson.M{"_id": orgID}).Decode(&org); err == nil {
 		orgName = org.Name
 	}
-	go sendInvitationEmail(req.Email, orgName, invitation.OrgRole, token)
+	if emailErr := sendInvitationEmail(req.Email, orgName, invitation.OrgRole, token); emailErr != nil {
+		// Roll back the invitation since the email failed
+		database.OrgInvitations().DeleteOne(ctx, bson.M{"_id": invitation.ID})
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadGateway)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": "Falha ao enviar email do convite: " + emailErr.Error(),
+		})
+		return
+	}
 
 	slog.Info("org_invitation_sent",
 		"org_id", orgID.Hex(),
@@ -844,6 +853,122 @@ func InviteMember(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(invitation)
+}
+
+// ResendInvitation godoc
+// @Summary Reenviar convite
+// @Description Reenvia o email de um convite pendente, gerando novo token e estendendo a expiração
+// @Tags organizations
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID do convite"
+// @Success 200 {object} map[string]string
+// @Failure 404 {string} string "Invitation not found"
+// @Router /orgs/current/invitations/{id}/resend [post]
+func ResendInvitation(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrgID(r)
+
+	idHex := r.PathValue("id")
+	invID, err := primitive.ObjectIDFromHex(idHex)
+	if err != nil {
+		http.Error(w, "Invalid invitation ID", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Find the invitation (must belong to current org and still be pending)
+	var invitation models.OrgInvitation
+	err = database.OrgInvitations().FindOne(ctx, bson.M{
+		"_id":    invID,
+		"org_id": orgID,
+		"status": "pending",
+	}).Decode(&invitation)
+	if err != nil {
+		http.Error(w, "Convite não encontrado ou já aceito", http.StatusNotFound)
+		return
+	}
+
+	// Generate a new token + extend expiration
+	tokenBytes := make([]byte, 32)
+	rand.Read(tokenBytes)
+	newToken := hex.EncodeToString(tokenBytes)
+	newExpiry := time.Now().Add(7 * 24 * time.Hour)
+
+	_, err = database.OrgInvitations().UpdateOne(ctx,
+		bson.M{"_id": invID},
+		bson.M{"$set": bson.M{
+			"token":      newToken,
+			"expires_at": newExpiry,
+		}},
+	)
+	if err != nil {
+		http.Error(w, "Erro ao atualizar convite", http.StatusInternalServerError)
+		return
+	}
+
+	// Resend email — synchronous to surface errors
+	var org models.Organization
+	orgName := "a organização"
+	if err := database.Organizations().FindOne(ctx, bson.M{"_id": orgID}).Decode(&org); err == nil {
+		orgName = org.Name
+	}
+	if emailErr := sendInvitationEmail(invitation.Email, orgName, invitation.OrgRole, newToken); emailErr != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadGateway)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": "Falha ao reenviar email: " + emailErr.Error(),
+		})
+		return
+	}
+
+	slog.Info("org_invitation_resent",
+		"org_id", orgID.Hex(),
+		"invitation_id", invID.Hex(),
+		"email", invitation.Email,
+	)
+
+	json.NewEncoder(w).Encode(map[string]string{"message": "Convite reenviado"})
+}
+
+// CancelInvitation godoc
+// @Summary Cancelar convite pendente
+// @Description Remove um convite pendente
+// @Tags organizations
+// @Security BearerAuth
+// @Param id path string true "ID do convite"
+// @Success 200 {object} map[string]string
+// @Router /orgs/current/invitations/{id} [delete]
+func CancelInvitation(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrgID(r)
+
+	idHex := r.PathValue("id")
+	invID, err := primitive.ObjectIDFromHex(idHex)
+	if err != nil {
+		http.Error(w, "Invalid invitation ID", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := database.OrgInvitations().DeleteOne(ctx, bson.M{
+		"_id":    invID,
+		"org_id": orgID,
+		"status": "pending",
+	})
+	if err != nil {
+		http.Error(w, "Erro ao cancelar convite", http.StatusInternalServerError)
+		return
+	}
+	if result.DeletedCount == 0 {
+		http.Error(w, "Convite não encontrado", http.StatusNotFound)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{"message": "Convite cancelado"})
 }
 
 // MyInvitations godoc
@@ -1209,11 +1334,15 @@ func AutoAcceptInvitations(ctx context.Context, userID primitive.ObjectID, email
 }
 
 // sendInvitationEmail sends the invitation email via Resend.
-func sendInvitationEmail(email, orgName, role, token string) {
+func sendInvitationEmail(email, orgName, role, token string) error {
 	cfg := config.Get()
 	if cfg.ResendAPIKey == "" {
 		slog.Error("invite_email: RESEND_API_KEY not configured")
-		return
+		return fmt.Errorf("serviço de email não configurado")
+	}
+	if cfg.FromEmail == "" {
+		slog.Error("invite_email: FROM_EMAIL not configured")
+		return fmt.Errorf("FROM_EMAIL não configurado")
 	}
 
 	rolePT := map[string]string{
@@ -1245,16 +1374,24 @@ func sendInvitationEmail(email, orgName, role, token string) {
 	resp, err := client.Do(req)
 	if err != nil {
 		slog.Error("invite_email: resend call failed", "error", err, "email", email)
-		return
+		return fmt.Errorf("falha ao chamar Resend: %w", err)
 	}
 	defer resp.Body.Close()
 
+	respBody, _ := io.ReadAll(resp.Body)
+
 	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
 		slog.Info("invite_email: sent", "email", email, "org", orgName)
-	} else {
-		body, _ := io.ReadAll(resp.Body)
-		slog.Error("invite_email: resend error", "status", resp.StatusCode, "body", string(body))
+		return nil
 	}
+
+	slog.Error("invite_email: resend error",
+		"status", resp.StatusCode,
+		"body", string(respBody),
+		"to", email,
+		"from", cfg.FromEmail,
+	)
+	return fmt.Errorf("Resend retornou status %d: %s", resp.StatusCode, string(respBody))
 }
 
 func buildInvitationEmailHTML(orgName, role, inviteURL string) string {

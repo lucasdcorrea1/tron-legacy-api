@@ -113,6 +113,8 @@ func New() http.Handler {
 	// Org members (require org context + admin/owner)
 	mux.Handle("GET /api/v1/orgs/current/members", middleware.Auth(middleware.RequireOrg(http.HandlerFunc(handlers.ListMembers))))
 	mux.Handle("POST /api/v1/orgs/current/invitations", middleware.Auth(middleware.RequireOrg(middleware.RequireOrgRole("owner", "admin")(http.HandlerFunc(handlers.InviteMember)))))
+	mux.Handle("POST /api/v1/orgs/current/invitations/{id}/resend", middleware.Auth(middleware.RequireOrg(middleware.RequireOrgRole("owner", "admin")(http.HandlerFunc(handlers.ResendInvitation)))))
+	mux.Handle("DELETE /api/v1/orgs/current/invitations/{id}", middleware.Auth(middleware.RequireOrg(middleware.RequireOrgRole("owner", "admin")(http.HandlerFunc(handlers.CancelInvitation)))))
 	mux.Handle("PUT /api/v1/orgs/current/members/{uid}/role", middleware.Auth(middleware.RequireOrg(middleware.RequireOrgRole("owner", "admin")(http.HandlerFunc(handlers.UpdateMemberRole)))))
 	mux.Handle("DELETE /api/v1/orgs/current/members/{uid}", middleware.Auth(middleware.RequireOrg(http.HandlerFunc(handlers.RemoveMember))))
 
