@@ -86,10 +86,18 @@ type Subscription struct {
 	ID                  primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	OrgID               primitive.ObjectID `json:"org_id" bson:"org_id"`
 	PlanID              string             `json:"plan_id" bson:"plan_id"` // "free", "starter", "pro", "enterprise"
-	Status              string             `json:"status" bson:"status"`   // "active", "trialing", "canceled"
+	Status              string             `json:"status" bson:"status"`   // "active", "pending", "past_due", "canceled"
 	CurrentPeriodEnd    time.Time          `json:"current_period_end" bson:"current_period_end"`
 	AsaasCustomerID     string             `json:"asaas_customer_id,omitempty" bson:"asaas_customer_id,omitempty"`
 	AsaasSubscriptionID string             `json:"asaas_subscription_id,omitempty" bson:"asaas_subscription_id,omitempty"`
+	BillingCycle        string             `json:"billing_cycle,omitempty" bson:"billing_cycle,omitempty"`             // "monthly" or "yearly"
+	BillingType         string             `json:"billing_type,omitempty" bson:"billing_type,omitempty"`               // "pix", "credit_card", "boleto"
+	NextDueDate         time.Time          `json:"next_due_date,omitempty" bson:"next_due_date,omitempty"`             // next Asaas charge date
+	OverdueSince        time.Time          `json:"overdue_since,omitempty" bson:"overdue_since,omitempty"`             // when first PAYMENT_OVERDUE fired
+	GracePeriodDays     int                `json:"grace_period_days,omitempty" bson:"grace_period_days,omitempty"`     // 0 = use system default (5)
+	PreviousPlanID      string             `json:"previous_plan_id,omitempty" bson:"previous_plan_id,omitempty"`       // plan before auto-downgrade
+	DowngradedAt        time.Time          `json:"downgraded_at,omitempty" bson:"downgraded_at,omitempty"`             // when auto-downgrade happened
+	LastSyncAt          time.Time          `json:"last_sync_at,omitempty" bson:"last_sync_at,omitempty"`               // last Asaas sync check
 	CreatedAt           time.Time          `json:"created_at" bson:"created_at"`
 	UpdatedAt           time.Time          `json:"updated_at" bson:"updated_at"`
 }

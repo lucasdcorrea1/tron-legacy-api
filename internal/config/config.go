@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -26,10 +27,12 @@ type Config struct {
 	MetaAppSecret       string
 	MetaAdsAccountID    string
 	MetaAdsAccessToken  string
-	AsaasAPIKey         string
-	AsaasSandbox        bool
-	AsaasWebhookToken   string
-	ContabilAPIURL      string
+	AsaasAPIKey             string
+	AsaasSandbox            bool
+	AsaasWebhookToken       string
+	ContabilAPIURL          string
+	BillingGracePeriodDays  int
+	BillingSyncIntervalMins int
 }
 
 var cfg *Config
@@ -67,10 +70,12 @@ func Load() *Config {
 		MetaAppSecret:      getEnv("META_APP_SECRET", ""),
 		MetaAdsAccountID:   getEnv("META_ADS_ACCOUNT_ID", ""),
 		MetaAdsAccessToken: getEnv("META_ADS_ACCESS_TOKEN", ""),
-		AsaasAPIKey:        getEnv("ASAAS_API_KEY", ""),
-		AsaasSandbox:       getEnv("ASAAS_SANDBOX", "true") == "true",
-		AsaasWebhookToken:  getEnv("ASAAS_WEBHOOK_TOKEN", ""),
-		ContabilAPIURL:     getEnv("CONTABIL_API_URL", "http://localhost:8089"),
+		AsaasAPIKey:             getEnv("ASAAS_API_KEY", ""),
+		AsaasSandbox:            getEnv("ASAAS_SANDBOX", "true") == "true",
+		AsaasWebhookToken:      getEnv("ASAAS_WEBHOOK_TOKEN", ""),
+		ContabilAPIURL:          getEnv("CONTABIL_API_URL", "http://localhost:8089"),
+		BillingGracePeriodDays:  parseIntEnv("BILLING_GRACE_PERIOD_DAYS", 5),
+		BillingSyncIntervalMins: parseIntEnv("BILLING_SYNC_INTERVAL_MINS", 60),
 	}
 
 	return cfg
@@ -86,4 +91,16 @@ func getEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func parseIntEnv(key string, fallback int) int {
+	v := getEnv(key, "")
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return fallback
+	}
+	return n
 }

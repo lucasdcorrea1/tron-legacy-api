@@ -597,6 +597,30 @@ func EnsureIndexes() error {
 		return err
 	}
 
+	// subscriptions: index on {status, overdue_since} for grace period enforcer
+	_, err = Subscriptions().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "status", Value: 1}, {Key: "overdue_since", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// subscriptions: index on asaas_subscription_id for webhook lookups
+	_, err = Subscriptions().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "asaas_subscription_id", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// subscriptions: index on asaas_customer_id for webhook fallback lookups
+	_, err = Subscriptions().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "asaas_customer_id", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
 	// webhook_logs: unique index on {payment_id, event} for idempotency
 	_, err = WebhookLogs().Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{

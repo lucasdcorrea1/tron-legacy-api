@@ -12,6 +12,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - PORT=8080
       - CONTABIL_API_URL=http://contabil-api:8089
+      - ASAAS_API_KEY=$$aact_hmlg_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OmVhNzVlNGZlLWNhOTktNDkwZC1hMGNlLTcwYTBmMWU1YjUxZTo6JGFhY2hfM2ZhYWUyOTMtYjAwNi00MGI2LWI1ZTEtOWE2MDU0OTFlNjJi
     depends_on:
       - mongo
       - redis

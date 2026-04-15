@@ -226,26 +226,62 @@ func processWebhookEvent(ctx context.Context, event, subID, customerID string, l
 
 	switch event {
 	case "PAYMENT_CONFIRMED", "PAYMENT_RECEIVED":
-		update := bson.M{
+		// Fetch subscription to determine billing cycle and check for reinstatement
+		var sub models.Subscription
+		if err := database.Subscriptions().FindOne(ctx, filter).Decode(&sub); err != nil {
+			logEntry.ProcessingResult = "ignored"
+			return nil
+		}
+
+		// Determine period extension based on billing cycle
+		periodEnd := now.AddDate(0, 1, 0) // default monthly
+		if sub.BillingCycle == "yearly" {
+			periodEnd = now.AddDate(1, 0, 0)
+		}
+
+		updateFields := bson.M{
 			"status":             "active",
-			"current_period_end": now.AddDate(0, 1, 0),
+			"current_period_end": periodEnd,
+			"overdue_since":      time.Time{}, // clear overdue
 			"updated_at":         now,
 		}
-		result, err := database.Subscriptions().UpdateOne(ctx, filter, bson.M{"$set": update})
+
+		// Reinstatement: if auto-downgraded, restore previous plan on payment
+		if sub.PreviousPlanID != "" && sub.PlanID == "free" && !sub.DowngradedAt.IsZero() {
+			updateFields["plan_id"] = sub.PreviousPlanID
+			updateFields["previous_plan_id"] = ""
+			updateFields["downgraded_at"] = time.Time{}
+			logEntry.NewPlan = sub.PreviousPlanID
+			slog.Info("billing_plan_reinstated", "org_id", sub.OrgID, "plan", sub.PreviousPlanID)
+		} else {
+			logEntry.NewPlan = sub.PlanID
+		}
+
+		result, err := database.Subscriptions().UpdateOne(ctx, filter, bson.M{"$set": updateFields})
 		if err != nil {
 			return err
 		}
 		if result.MatchedCount == 0 {
 			logEntry.ProcessingResult = "ignored"
 		}
-		logEntry.NewPlan = logEntry.PreviousPlan
 
 	case "PAYMENT_OVERDUE":
-		_, err := database.Subscriptions().UpdateOne(ctx, filter,
-			bson.M{"$set": bson.M{"status": "past_due", "updated_at": now}},
+		// Set overdue_since only if not already set (don't reset timer on repeated events)
+		result, err := database.Subscriptions().UpdateOne(ctx,
+			bson.M{"$and": []bson.M{filter, {"$or": []bson.M{
+				{"overdue_since": bson.M{"$exists": false}},
+				{"overdue_since": time.Time{}},
+			}}}},
+			bson.M{"$set": bson.M{"status": "past_due", "overdue_since": now, "updated_at": now}},
 		)
 		if err != nil {
 			return err
+		}
+		// If overdue_since was already set, just update status
+		if result.MatchedCount == 0 {
+			database.Subscriptions().UpdateOne(ctx, filter,
+				bson.M{"$set": bson.M{"status": "past_due", "updated_at": now}},
+			)
 		}
 
 	case "PAYMENT_DELETED", "PAYMENT_REFUNDED":
@@ -258,7 +294,7 @@ func processWebhookEvent(ctx context.Context, event, subID, customerID string, l
 			return err
 		}
 
-	case "SUBSCRIPTION_CREATED", "SUBSCRIPTION_UPDATED":
+	case "SUBSCRIPTION_CREATED", "SUBSCRIPTION_UPDATED", "PAYMENT_UPDATED":
 		// Just log, subscription was already created by our checkout
 		logEntry.NewPlan = logEntry.PreviousPlan
 

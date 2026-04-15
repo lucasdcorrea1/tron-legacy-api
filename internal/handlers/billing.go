@@ -157,8 +157,15 @@ func Checkout(w http.ResponseWriter, r *http.Request) {
 	// Find or create Asaas customer
 	var customerID string
 	if sub.AsaasCustomerID != "" {
-		customerID = sub.AsaasCustomerID
-	} else {
+		// Verify the saved customer still exists on Asaas
+		if _, err := asaas.GetCustomer(sub.AsaasCustomerID); err == nil {
+			customerID = sub.AsaasCustomerID
+		} else {
+			slog.Warn("asaas_saved_customer_invalid", "customer_id", sub.AsaasCustomerID, "error", err)
+			// Fall through to find/create below
+		}
+	}
+	if customerID == "" {
 		existing, _ := asaas.FindCustomerByEmail(owner.Email)
 		if existing != nil {
 			customerID = existing.ID
@@ -252,12 +259,27 @@ func Checkout(w http.ResponseWriter, r *http.Request) {
 
 	// Update local subscription
 	now := time.Now()
+
+	// Parse next due date from Asaas response
+	var nextDue time.Time
+	if asaasSub.NextDueDate != "" {
+		if parsed, err := time.Parse("2006-01-02", asaasSub.NextDueDate); err == nil {
+			nextDue = parsed
+		}
+	}
+
 	update := bson.M{
 		"$set": bson.M{
 			"plan_id":               req.PlanID,
 			"status":                "pending",
 			"asaas_customer_id":     customerID,
 			"asaas_subscription_id": asaasSub.ID,
+			"billing_cycle":         cycle,
+			"billing_type":          billingType,
+			"next_due_date":         nextDue,
+			"overdue_since":         time.Time{},
+			"previous_plan_id":      "",
+			"downgraded_at":         time.Time{},
 			"updated_at":            now,
 		},
 	}
@@ -267,6 +289,9 @@ func Checkout(w http.ResponseWriter, r *http.Request) {
 	sub.Status = "pending"
 	sub.AsaasCustomerID = customerID
 	sub.AsaasSubscriptionID = asaasSub.ID
+	sub.BillingCycle = cycle
+	sub.BillingType = billingType
+	sub.NextDueDate = nextDue
 	sub.UpdatedAt = now
 
 	// ── Build response with payment data ────────────────────────────

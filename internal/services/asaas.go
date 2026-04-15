@@ -156,6 +156,19 @@ func (c *AsaasClient) doRequest(method, path string, body interface{}) ([]byte, 
 	return respBody, nil
 }
 
+// GetCustomer retrieves a customer by ID from Asaas. Returns nil if not found.
+func (c *AsaasClient) GetCustomer(customerID string) (*AsaasCustomer, error) {
+	data, err := c.doRequest("GET", "/customers/"+customerID, nil)
+	if err != nil {
+		return nil, err
+	}
+	var customer AsaasCustomer
+	if err := json.Unmarshal(data, &customer); err != nil {
+		return nil, err
+	}
+	return &customer, nil
+}
+
 // CreateCustomer creates or finds a customer on Asaas.
 func (c *AsaasClient) CreateCustomer(req CreateCustomerRequest) (*AsaasCustomer, error) {
 	data, err := c.doRequest("POST", "/customers", req)

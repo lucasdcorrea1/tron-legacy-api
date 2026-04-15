@@ -350,6 +350,13 @@ func New() http.Handler {
 	mux.Handle("GET /api/v1/platform/webhook-logs", middleware.Auth(middleware.RequireRole("superadmin", "superuser")(http.HandlerFunc(handlers.ListWebhookLogs))))
 	mux.Handle("GET /api/v1/platform/webhook-stats", middleware.Auth(middleware.RequireRole("superadmin", "superuser")(http.HandlerFunc(handlers.WebhookStats))))
 	mux.Handle("PUT /api/v1/platform/orgs/{id}/subscription-status", middleware.Auth(middleware.RequireRole("superadmin", "superuser")(http.HandlerFunc(handlers.PlatformUpdateSubscriptionStatus))))
+	mux.Handle("GET /api/v1/platform/orgs/{id}/payments", middleware.Auth(middleware.RequireRole("superadmin", "superuser")(http.HandlerFunc(handlers.PlatformGetOrgPaymentHistory))))
+	mux.Handle("GET /api/v1/platform/revenue-metrics", middleware.Auth(middleware.RequireRole("superadmin", "superuser")(http.HandlerFunc(handlers.PlatformRevenueMetrics))))
+	mux.Handle("GET /api/v1/platform/overdue-subscriptions", middleware.Auth(middleware.RequireRole("superadmin", "superuser")(http.HandlerFunc(handlers.PlatformListOverdue))))
+	mux.Handle("PUT /api/v1/platform/orgs/{id}/grace-period", middleware.Auth(middleware.RequireRole("superadmin", "superuser")(http.HandlerFunc(handlers.PlatformExtendGrace))))
+	mux.Handle("POST /api/v1/platform/orgs/{id}/sync-billing", middleware.Auth(middleware.RequireRole("superadmin", "superuser")(http.HandlerFunc(handlers.PlatformSyncOrg))))
+	mux.Handle("GET /api/v1/platform/jobs", middleware.Auth(middleware.RequireRole("superadmin", "superuser")(http.HandlerFunc(handlers.PlatformListJobs))))
+	mux.Handle("POST /api/v1/platform/jobs/{id}/trigger", middleware.Auth(middleware.RequireRole("superadmin", "superuser")(http.HandlerFunc(handlers.PlatformTriggerJob))))
 
 	// ==========================================
 	// CONTABIL MODULE ROUTES
