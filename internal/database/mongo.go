@@ -162,6 +162,16 @@ func ContabilUserMappings() *mongo.Collection {
 	return DB.Collection("contabil_user_mappings")
 }
 
+// ── Conta Azul module collections ────────────────────────────────────
+
+func EndClients() *mongo.Collection {
+	return DB.Collection("end_clients")
+}
+
+func EndClientRefreshTokens() *mongo.Collection {
+	return DB.Collection("end_client_refresh_tokens")
+}
+
 // ── Multi-tenant collections ─────────────────────────────────────────
 
 func Organizations() *mongo.Collection {
@@ -640,6 +650,42 @@ func EnsureIndexes() error {
 	})
 	if err != nil {
 		log.Printf("webhook_logs TTL index warning: %v", err)
+	}
+
+	// ── Conta Azul module indexes ────────────────────────────────────
+
+	// end_clients: unique index on {org_id, email} — same email allowed across orgs
+	_, err = EndClients().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "org_id", Value: 1}, {Key: "email", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	})
+	if err != nil {
+		return err
+	}
+
+	// end_clients: index on org_id for listing
+	_, err = EndClients().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "org_id", Value: 1}, {Key: "created_at", Value: -1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// end_client_refresh_tokens: TTL on expires_at
+	_, err = EndClientRefreshTokens().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "expires_at", Value: 1}},
+		Options: options.Index().SetExpireAfterSeconds(0),
+	})
+	if err != nil {
+		return err
+	}
+
+	// end_client_refresh_tokens: index on token_hash for lookup
+	_, err = EndClientRefreshTokens().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "token_hash", Value: 1}},
+	})
+	if err != nil {
+		return err
 	}
 
 	log.Println("Engagement indexes ensured")

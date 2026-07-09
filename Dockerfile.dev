@@ -1,0 +1,17 @@
+FROM golang:1.24-alpine
+
+RUN apk add --no-cache git
+
+# air: hot-reload for Go (https://github.com/air-verse/air)
+RUN go install github.com/air-verse/air@v1.52.3
+
+WORKDIR /app
+
+# Pre-fetch modules to warm the cache. Source is mounted at runtime,
+# so we do not COPY it here — that would mask the volume mount.
+COPY go.mod go.sum ./
+RUN go mod download
+
+EXPOSE 8080
+
+ENTRYPOINT ["air", "-c", ".air.toml"]

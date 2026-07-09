@@ -1,8 +1,26 @@
 services:
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    volumes:
+      - ../tron-legacy-frontend:/app
+      - frontend_node_modules:/app/node_modules
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:8088
+      - VITE_3D_API_URL=http://localhost:8090
+    depends_on:
+      - api
+    restart: unless-stopped
+
   api:
+    # DEV: usa Dockerfile.dev + air para hot-reload.
+    # Para build de produção, troque para `dockerfile: Dockerfile` e remova os volumes.
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     ports:
       - "8088:8080"
     env_file:
@@ -12,7 +30,11 @@ services:
       - REDIS_URL=redis://redis:6379
       - PORT=8080
       - CONTABIL_API_URL=http://contabil-api:8089
-      - ASAAS_API_KEY=$$aact_hmlg_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OmVhNzVlNGZlLWNhOTktNDkwZC1hMGNlLTcwYTBmMWU1YjUxZTo6JGFhY2hfM2ZhYWUyOTMtYjAwNi00MGI2LWI1ZTEtOWE2MDU0OTFlNjJi
+      - ASAAS_API_KEY=${ASAAS_API_KEY}
+    volumes:
+      - .:/app
+      - api_go_cache:/go/pkg/mod
+      - api_tmp:/app/tmp
     depends_on:
       - mongo
       - redis
@@ -100,7 +122,7 @@ services:
       - "3003:3000"  # Porta 3003 para evitar conflitos
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=tron123
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
@@ -124,7 +146,7 @@ services:
       - MONGO_URI=mongodb://contabil-mongo:27017
       - DB_NAME=whodo_contabil
       - PORT=8089
-      - JWT_SECRET=${JWT_SECRET:-tron-legacy-dev-secret-change-in-production-2024}
+      - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRY=168h
     depends_on:
       - contabil-mongo
@@ -144,6 +166,9 @@ volumes:
   prometheus_data:
   loki_data:
   grafana_data:
+  frontend_node_modules:
+  api_go_cache:
+  api_tmp:
   contabil_mongo_data:
     # Se voce ja tem dados no volume antigo do docker-compose do contabil,
     # descomente as linhas abaixo e substitua pelo nome real do volume:

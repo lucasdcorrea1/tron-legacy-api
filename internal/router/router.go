@@ -413,6 +413,34 @@ func New() http.Handler {
 	mux.Handle("GET /api/v1/admin/contabil/roles", orgPerm("contabil:access")(http.HandlerFunc(contabilProxy)))
 	mux.Handle("GET /api/v1/admin/contabil/roles/{role}/permissions", orgPerm("contabil:access")(http.HandlerFunc(contabilProxy)))
 
+	// ── Conta Azul module — admin CRUD de EndClients ──
+	mux.Handle("GET /api/v1/admin/conta-azul/clients", orgPerm("contaazul:manage_clients")(http.HandlerFunc(handlers.ListEndClients)))
+	mux.Handle("POST /api/v1/admin/conta-azul/clients", orgPerm("contaazul:manage_clients")(http.HandlerFunc(handlers.CreateEndClient)))
+	mux.Handle("PATCH /api/v1/admin/conta-azul/clients/{id}/active", orgPerm("contaazul:manage_clients")(http.HandlerFunc(handlers.ToggleEndClientActive)))
+	mux.Handle("PATCH /api/v1/admin/conta-azul/clients/{id}/theme", orgPerm("contaazul:manage_clients")(http.HandlerFunc(handlers.SetEndClientTheme)))
+	mux.Handle("POST /api/v1/admin/conta-azul/clients/{id}/import-tokens", orgPerm("contaazul:manage_clients")(http.HandlerFunc(handlers.AdminImportContaAzulTokens)))
+	mux.Handle("DELETE /api/v1/admin/conta-azul/clients/{id}", orgPerm("contaazul:manage_clients")(http.HandlerFunc(handlers.DeleteEndClient)))
+
+	// ── Conta Azul portal theme: org-level default ──
+	mux.Handle("GET /api/v1/admin/conta-azul/portal-theme", orgPerm("contaazul:manage_clients")(http.HandlerFunc(handlers.GetOrgPortalTheme)))
+	mux.Handle("PUT /api/v1/admin/conta-azul/portal-theme", orgPerm("contaazul:manage_clients")(http.HandlerFunc(handlers.SetOrgPortalTheme)))
+
+	// ── Conta Azul module — portal do EndClient (não usa Auth/Org do SaaS) ──
+	mux.HandleFunc("POST /api/v1/portal/auth/login", handlers.PortalLogin)
+	mux.HandleFunc("POST /api/v1/portal/auth/refresh", handlers.PortalRefresh)
+	mux.HandleFunc("POST /api/v1/portal/auth/logout", handlers.PortalLogout)
+	mux.Handle("GET /api/v1/portal/me", middleware.EndClientAuth(http.HandlerFunc(handlers.PortalMe)))
+	mux.Handle("GET /api/v1/portal/theme", middleware.EndClientAuth(http.HandlerFunc(handlers.GetPortalResolvedTheme)))
+	mux.Handle("GET /api/v1/portal/conta-azul/connect-url", middleware.EndClientAuth(http.HandlerFunc(handlers.PortalContaAzulConnectURL)))
+	mux.Handle("POST /api/v1/portal/conta-azul/callback", middleware.EndClientAuth(http.HandlerFunc(handlers.PortalContaAzulCallback)))
+	mux.Handle("DELETE /api/v1/portal/conta-azul/connection", middleware.EndClientAuth(http.HandlerFunc(handlers.PortalContaAzulDisconnect)))
+
+	// ── Portal Dashboard (dados financeiros via aggregator) ──
+	mux.Handle("GET /api/v1/portal/conta-azul/dashboard/summary", middleware.EndClientAuth(http.HandlerFunc(handlers.PortalDashboardSummary)))
+	mux.Handle("GET /api/v1/portal/conta-azul/dashboard/cashflow", middleware.EndClientAuth(http.HandlerFunc(handlers.PortalDashboardCashflow)))
+	mux.Handle("GET /api/v1/portal/conta-azul/dashboard/categories", middleware.EndClientAuth(http.HandlerFunc(handlers.PortalDashboardCategories)))
+	mux.Handle("GET /api/v1/portal/conta-azul/dashboard/upcoming", middleware.EndClientAuth(http.HandlerFunc(handlers.PortalDashboardUpcoming)))
+
 	// ==========================================
 	// GLOBAL MIDDLEWARES
 	// ==========================================

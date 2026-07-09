@@ -33,6 +33,11 @@ type Config struct {
 	ContabilAPIURL          string
 	BillingGracePeriodDays  int
 	BillingSyncIntervalMins int
+	ContaAzulClientID       string
+	ContaAzulClientSecret   string
+	ContaAzulAuthURL        string
+	ContaAzulTokenURL       string
+	ContaAzulAPIBaseURL     string
 }
 
 var cfg *Config
@@ -76,6 +81,11 @@ func Load() *Config {
 		ContabilAPIURL:          getEnv("CONTABIL_API_URL", "http://localhost:8089"),
 		BillingGracePeriodDays:  parseIntEnv("BILLING_GRACE_PERIOD_DAYS", 5),
 		BillingSyncIntervalMins: parseIntEnv("BILLING_SYNC_INTERVAL_MINS", 60),
+		ContaAzulClientID:       getEnv("CONTA_AZUL_CLIENT_ID", ""),
+		ContaAzulClientSecret:   getEnv("CONTA_AZUL_CLIENT_SECRET", ""),
+		ContaAzulAuthURL:        getEnv("CONTA_AZUL_AUTH_URL", "https://auth.contaazul.com/oauth2/authorize"),
+		ContaAzulTokenURL:       getEnv("CONTA_AZUL_TOKEN_URL", "https://auth.contaazul.com/oauth2/token"),
+		ContaAzulAPIBaseURL:     getEnv("CONTA_AZUL_API_BASE_URL", "https://api-v2.contaazul.com"),
 	}
 
 	return cfg

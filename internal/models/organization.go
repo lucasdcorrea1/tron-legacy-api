@@ -50,11 +50,12 @@ const (
 
 // OrgSettings holds organization-level preferences.
 type OrgSettings struct {
-	DefaultLanguage  string         `json:"default_language,omitempty" bson:"default_language,omitempty"`
-	DefaultCurrency  string         `json:"default_currency,omitempty" bson:"default_currency,omitempty"`
-	BrandColorsDark  *BrandColors   `json:"brand_colors_dark,omitempty" bson:"brand_colors_dark,omitempty"`
-	BrandColorsLight *BrandColors   `json:"brand_colors_light,omitempty" bson:"brand_colors_light,omitempty"`
-	SidebarDisplay   SidebarDisplay `json:"sidebar_display,omitempty" bson:"sidebar_display,omitempty"`
+	DefaultLanguage       string         `json:"default_language,omitempty" bson:"default_language,omitempty"`
+	DefaultCurrency       string         `json:"default_currency,omitempty" bson:"default_currency,omitempty"`
+	BrandColorsDark       *BrandColors   `json:"brand_colors_dark,omitempty" bson:"brand_colors_dark,omitempty"`
+	BrandColorsLight      *BrandColors   `json:"brand_colors_light,omitempty" bson:"brand_colors_light,omitempty"`
+	SidebarDisplay        SidebarDisplay `json:"sidebar_display,omitempty" bson:"sidebar_display,omitempty"`
+	ContaAzulPortalTheme  *PortalTheme   `json:"conta_azul_portal_theme,omitempty" bson:"conta_azul_portal_theme,omitempty"`
 }
 
 // OrgMembership links a user to an organization with a role.
@@ -111,6 +112,8 @@ type PlanLimits struct {
 	MaxBudgetAlerts     int `json:"max_budget_alerts"`
 	MaxCampaigns        int `json:"max_campaigns"`
 	MaxIntegratedPubs   int `json:"max_integrated_pubs"`
+	MaxEndClients       int `json:"max_end_clients"`        // Conta Azul module: max cadastros de clientes-finais
+	MaxContaAzulConns   int `json:"max_conta_azul_conns"`   // Conta Azul module: conexões OAuth ativas
 }
 
 // Plans defines the resource limits for each subscription plan. -1 = unlimited.
@@ -150,6 +153,21 @@ var Plans = map[string]PlanLimits{
 		MaxBudgetAlerts:   -1,
 		MaxCampaigns:      -1,
 		MaxIntegratedPubs: -1,
+		MaxEndClients:     -1,
+		MaxContaAzulConns: -1,
+	},
+	// "contaazul" is a custom plan focused on the Conta Azul dashboard module.
+	// Other features (Instagram, MetaAds, etc) are disabled; quotas point to EndClient capacity.
+	"contaazul": {
+		MaxMembers:        3,
+		MaxScheduledPosts: 0,
+		MaxAutoReplyRules: 0,
+		MaxAutoBoostRules: 0,
+		MaxBudgetAlerts:   0,
+		MaxCampaigns:      0,
+		MaxIntegratedPubs: 0,
+		MaxEndClients:     -1,
+		MaxContaAzulConns: -1,
 	},
 }
 
@@ -195,6 +213,9 @@ var AllPermissions = []string{
 	"contabil:manage",
 	"contabil:admin",
 	"contabil:import",
+	"contaazul:dashboard",      // ver dashboards do módulo Conta Azul
+	"contaazul:manage_clients", // CRUD de EndClients
+	"contaazul:connect",        // realizar OAuth da Conta Azul para um EndClient
 }
 
 // ValidPermission checks if a permission string is valid.
@@ -247,4 +268,6 @@ type PlanUsage struct {
 	BudgetAlerts   int `json:"budget_alerts"`
 	Campaigns      int `json:"campaigns"`
 	IntegratedPubs int `json:"integrated_pubs"`
+	EndClients     int `json:"end_clients"`
+	ContaAzulConns int `json:"conta_azul_conns"`
 }
