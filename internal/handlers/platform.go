@@ -97,9 +97,9 @@ func PlatformStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"total_organizations": totalOrgs,
-		"total_users":         totalUsers,
-		"total_posts":         totalPosts,
+		"total_organizations":   totalOrgs,
+		"total_users":           totalUsers,
+		"total_posts":           totalPosts,
 		"subscriptions_by_plan": planCounts,
 	})
 }
@@ -143,10 +143,12 @@ func PlatformOrgsWithMembers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type orgWithMembers struct {
-		ID      primitive.ObjectID `json:"id"`
-		Name    string             `json:"name"`
-		Slug    string             `json:"slug"`
-		Members []memberInfo       `json:"members"`
+		ID         primitive.ObjectID `json:"id"`
+		Name       string             `json:"name"`
+		Slug       string             `json:"slug"`
+		PlanID     string             `json:"plan_id"`
+		PlanStatus string             `json:"plan_status"`
+		Members    []memberInfo       `json:"members"`
 	}
 
 	result := make([]orgWithMembers, 0, len(allOrgs))
@@ -178,11 +180,16 @@ func PlatformOrgsWithMembers(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 
+		var sub models.Subscription
+		_ = database.Subscriptions().FindOne(ctx, bson.M{"org_id": org.ID}).Decode(&sub)
+
 		result = append(result, orgWithMembers{
-			ID:      org.ID,
-			Name:    org.Name,
-			Slug:    org.Slug,
-			Members: members,
+			ID:         org.ID,
+			Name:       org.Name,
+			Slug:       org.Slug,
+			PlanID:     sub.PlanID,
+			PlanStatus: sub.Status,
+			Members:    members,
 		})
 	}
 
@@ -266,12 +273,12 @@ func PlatformListSubscriptions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type orgSubscription struct {
-		OrgID        primitive.ObjectID  `json:"org_id"`
-		OrgName      string              `json:"org_name"`
-		OrgSlug      string              `json:"org_slug"`
-		OwnerName    string              `json:"owner_name"`
-		OwnerEmail   string              `json:"owner_email"`
-		MemberCount  int                 `json:"member_count"`
+		OrgID        primitive.ObjectID   `json:"org_id"`
+		OrgName      string               `json:"org_name"`
+		OrgSlug      string               `json:"org_slug"`
+		OwnerName    string               `json:"owner_name"`
+		OwnerEmail   string               `json:"owner_email"`
+		MemberCount  int                  `json:"member_count"`
 		Subscription *models.Subscription `json:"subscription"`
 	}
 
@@ -471,13 +478,13 @@ func PlatformRevenueMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"mrr":              math.Round(mrr*100) / 100,
-		"arr":              math.Round(mrr*12*100) / 100,
-		"active_paid":      activePaid,
-		"overdue_count":    overdueCount,
-		"churn_last_30d":   churnCount,
-		"churn_rate":       churnRate,
-		"by_plan":          byPlanResult,
+		"mrr":            math.Round(mrr*100) / 100,
+		"arr":            math.Round(mrr*12*100) / 100,
+		"active_paid":    activePaid,
+		"overdue_count":  overdueCount,
+		"churn_last_30d": churnCount,
+		"churn_rate":     churnRate,
+		"by_plan":        byPlanResult,
 	})
 }
 
@@ -571,9 +578,9 @@ func PlatformListOverdue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"overdue":         result,
-		"total":           len(result),
-		"imminent_count":  imminentCount,
+		"overdue":        result,
+		"total":          len(result),
+		"imminent_count": imminentCount,
 	})
 }
 
@@ -600,7 +607,7 @@ func PlatformExtendGrace(w http.ResponseWriter, r *http.Request) {
 		bson.M{"org_id": orgID},
 		bson.M{"$set": bson.M{
 			"grace_period_days": req.GracePeriodDays,
-			"updated_at":       time.Now(),
+			"updated_at":        time.Now(),
 		}},
 	)
 	if err != nil || result.MatchedCount == 0 {
@@ -609,7 +616,7 @@ func PlatformExtendGrace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message":          "Grace period updated",
+		"message":           "Grace period updated",
 		"grace_period_days": req.GracePeriodDays,
 	})
 }

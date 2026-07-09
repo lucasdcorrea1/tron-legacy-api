@@ -161,6 +161,13 @@ func New() http.Handler {
 		}
 	}
 
+	// Helper: auth + org + Conta Azul plan (exact eligibility, not a rank threshold) + permission
+	orgContaAzul := func(perm string) func(http.Handler) http.Handler {
+		return func(h http.Handler) http.Handler {
+			return middleware.Auth(middleware.RequireOrg(middleware.RequireContaAzulPlan()(middleware.RequirePermission(perm)(h))))
+		}
+	}
+
 	// Users/members (org-scoped)
 	mux.Handle("GET /api/v1/users", orgRoute("owner", "admin")(http.HandlerFunc(handlers.ListUsers)))
 	mux.Handle("PUT /api/v1/users/{id}/role", orgRoute("owner", "admin")(http.HandlerFunc(handlers.UpdateUserRole)))
@@ -413,17 +420,20 @@ func New() http.Handler {
 	mux.Handle("GET /api/v1/admin/contabil/roles", orgPerm("contabil:access")(http.HandlerFunc(contabilProxy)))
 	mux.Handle("GET /api/v1/admin/contabil/roles/{role}/permissions", orgPerm("contabil:access")(http.HandlerFunc(contabilProxy)))
 
-	// ── Conta Azul module — admin CRUD de EndClients ──
-	mux.Handle("GET /api/v1/admin/conta-azul/clients", orgPerm("contaazul:manage_clients")(http.HandlerFunc(handlers.ListEndClients)))
-	mux.Handle("POST /api/v1/admin/conta-azul/clients", orgPerm("contaazul:manage_clients")(http.HandlerFunc(handlers.CreateEndClient)))
-	mux.Handle("PATCH /api/v1/admin/conta-azul/clients/{id}/active", orgPerm("contaazul:manage_clients")(http.HandlerFunc(handlers.ToggleEndClientActive)))
-	mux.Handle("PATCH /api/v1/admin/conta-azul/clients/{id}/theme", orgPerm("contaazul:manage_clients")(http.HandlerFunc(handlers.SetEndClientTheme)))
-	mux.Handle("POST /api/v1/admin/conta-azul/clients/{id}/import-tokens", orgPerm("contaazul:manage_clients")(http.HandlerFunc(handlers.AdminImportContaAzulTokens)))
-	mux.Handle("DELETE /api/v1/admin/conta-azul/clients/{id}", orgPerm("contaazul:manage_clients")(http.HandlerFunc(handlers.DeleteEndClient)))
+	// ── Conta Azul module — admin CRUD de EndClients (requer plano "contaazul"/"enterprise") ──
+	mux.Handle("GET /api/v1/admin/conta-azul/clients", orgContaAzul("contaazul:manage_clients")(http.HandlerFunc(handlers.ListEndClients)))
+	mux.Handle("POST /api/v1/admin/conta-azul/clients", orgContaAzul("contaazul:manage_clients")(http.HandlerFunc(handlers.CreateEndClient)))
+	mux.Handle("PATCH /api/v1/admin/conta-azul/clients/{id}/active", orgContaAzul("contaazul:manage_clients")(http.HandlerFunc(handlers.ToggleEndClientActive)))
+	mux.Handle("PATCH /api/v1/admin/conta-azul/clients/{id}/theme", orgContaAzul("contaazul:manage_clients")(http.HandlerFunc(handlers.SetEndClientTheme)))
+	mux.Handle("PATCH /api/v1/admin/conta-azul/clients/{id}/password", orgContaAzul("contaazul:manage_clients")(http.HandlerFunc(handlers.SetEndClientPassword)))
+	mux.Handle("POST /api/v1/admin/conta-azul/clients/{id}/import-tokens", orgContaAzul("contaazul:manage_clients")(http.HandlerFunc(handlers.AdminImportContaAzulTokens)))
+	mux.Handle("DELETE /api/v1/admin/conta-azul/clients/{id}", orgContaAzul("contaazul:manage_clients")(http.HandlerFunc(handlers.DeleteEndClient)))
 
 	// ── Conta Azul portal theme: org-level default ──
-	mux.Handle("GET /api/v1/admin/conta-azul/portal-theme", orgPerm("contaazul:manage_clients")(http.HandlerFunc(handlers.GetOrgPortalTheme)))
-	mux.Handle("PUT /api/v1/admin/conta-azul/portal-theme", orgPerm("contaazul:manage_clients")(http.HandlerFunc(handlers.SetOrgPortalTheme)))
+	mux.Handle("POST /api/v1/admin/conta-azul/portal-theme/logo", orgContaAzul("contaazul:manage_clients")(http.HandlerFunc(handlers.UploadOrgPortalThemeLogo)))
+	mux.Handle("POST /api/v1/admin/conta-azul/clients/{id}/theme/logo", orgContaAzul("contaazul:manage_clients")(http.HandlerFunc(handlers.UploadEndClientThemeLogo)))
+	mux.Handle("GET /api/v1/admin/conta-azul/portal-theme", orgContaAzul("contaazul:manage_clients")(http.HandlerFunc(handlers.GetOrgPortalTheme)))
+	mux.Handle("PUT /api/v1/admin/conta-azul/portal-theme", orgContaAzul("contaazul:manage_clients")(http.HandlerFunc(handlers.SetOrgPortalTheme)))
 
 	// ── Conta Azul module — portal do EndClient (não usa Auth/Org do SaaS) ──
 	mux.HandleFunc("POST /api/v1/portal/auth/login", handlers.PortalLogin)

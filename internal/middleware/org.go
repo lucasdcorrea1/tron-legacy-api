@@ -182,6 +182,58 @@ func RequirePlan(minPlan string) func(http.Handler) http.Handler {
 	}
 }
 
+// RequireContaAzulPlan blocks orgs whose active plan doesn't include the Conta
+// Azul module. Unlike RequirePlan, this isn't a rank threshold — "contaazul"
+// sits outside the free/starter/pro/enterprise ladder, so eligibility is
+// derived directly from the plan's MaxEndClients quota (0 = not included).
+// Must be used after RequireOrg middleware.
+func RequireContaAzulPlan() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			orgID := GetOrgID(r)
+			if orgID == primitive.NilObjectID {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]string{"message": "No organization selected"})
+				return
+			}
+
+			ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+			defer cancel()
+
+			var sub models.Subscription
+			err := database.Subscriptions().FindOne(ctx, bson.M{"org_id": orgID}).Decode(&sub)
+			if err != nil {
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(map[string]string{"message": "Nenhuma assinatura encontrada"})
+				return
+			}
+
+			effectivePlan := sub.PlanID
+			if sub.Status != "active" {
+				effectivePlan = "free"
+			}
+
+			if models.Plans[effectivePlan].MaxEndClients == 0 {
+				slog.Warn("conta_azul_plan_check_failed",
+					"org_id", orgID.Hex(),
+					"current_plan", effectivePlan,
+					"status", sub.Status,
+				)
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"message":      "Módulo Conta Azul não disponível no seu plano",
+					"current_plan": effectivePlan,
+					"status":       sub.Status,
+					"upgrade":      true,
+				})
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // RequirePermission checks that the user has a specific granular permission.
 // Owner and Admin roles always pass. Members need the permission explicitly.
 // Viewers are always blocked. Must be used after RequireOrg middleware.

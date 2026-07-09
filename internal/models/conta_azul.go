@@ -138,6 +138,7 @@ type EndClientListItem struct {
 	IsActive        bool               `json:"is_active"`
 	HasContaAzul    bool               `json:"has_conta_azul"`
 	DashboardAccess []string           `json:"dashboard_access"`
+	PortalTheme     *PortalTheme       `json:"portal_theme,omitempty"`
 	LastLoginAt     time.Time          `json:"last_login_at,omitempty"`
 	CreatedAt       time.Time          `json:"created_at"`
 }

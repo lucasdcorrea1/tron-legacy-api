@@ -55,6 +55,7 @@ func ListEndClients(w http.ResponseWriter, r *http.Request) {
 			IsActive:        ec.IsActive,
 			HasContaAzul:    ec.ContaAzulConn != nil && ec.ContaAzulConn.AccessTokenEnc != "",
 			DashboardAccess: ec.DashboardAccess,
+			PortalTheme:     ec.PortalTheme,
 			LastLoginAt:     ec.LastLoginAt,
 			CreatedAt:       ec.CreatedAt,
 		})
@@ -207,6 +208,63 @@ func ToggleEndClientActive(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"is_active": req.IsActive})
+}
+
+// SetEndClientPassword lets the org admin reset a client's portal password.
+// PATCH /api/v1/admin/conta-azul/clients/{id}/password
+func SetEndClientPassword(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrgID(r)
+	if orgID == primitive.NilObjectID {
+		http.Error(w, "Organization context required", http.StatusBadRequest)
+		return
+	}
+
+	idStr := r.PathValue("id")
+	id, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		http.Error(w, "Invalid id", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if msg := models.ValidatePassword(req.Password); msg != "" {
+		http.Error(w, msg, http.StatusBadRequest)
+		return
+	}
+
+	hash, err := models.HashPassword(req.Password)
+	if err != nil {
+		http.Error(w, "Erro ao processar senha", http.StatusInternalServerError)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	res, err := database.EndClients().UpdateOne(
+		ctx,
+		bson.M{"_id": id, "org_id": orgID},
+		bson.M{"$set": bson.M{"password_hash": hash, "updated_at": time.Now()}},
+	)
+	if err != nil {
+		http.Error(w, "Erro ao atualizar senha", http.StatusInternalServerError)
+		return
+	}
+	if res.MatchedCount == 0 {
+		http.Error(w, "Cliente não encontrado", http.StatusNotFound)
+		return
+	}
+
+	// Revoke existing sessions so the client must log in again with the new password.
+	_, _ = database.EndClientRefreshTokens().DeleteMany(ctx, bson.M{"end_client_id": id})
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // DeleteEndClient godoc

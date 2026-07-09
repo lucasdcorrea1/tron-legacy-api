@@ -1,8 +1,14 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"image"
+	"image/jpeg"
+	_ "image/png"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -101,6 +107,121 @@ func sanitizeTheme(t *models.PortalTheme) models.PortalTheme {
 		TextColor:      sanitizeColor(t.TextColor),
 		TextMutedColor: sanitizeColor(t.TextMutedColor),
 	}
+}
+
+// ── Logo upload (shared by org and client scopes) ──────────────────
+
+// decodePortalThemeLogo reads a multipart "logo" field, validates it, and
+// returns it as a data: URI — mirrors UploadOrgLogo's approach (resize to
+// 128x128, inline base64, no external storage).
+func decodePortalThemeLogo(w http.ResponseWriter, r *http.Request) (string, bool) {
+	r.Body = http.MaxBytesReader(w, r.Body, 2<<20)
+	if err := r.ParseMultipartForm(2 << 20); err != nil {
+		http.Error(w, "Image too large (max 2MB)", http.StatusRequestEntityTooLarge)
+		return "", false
+	}
+
+	file, header, err := r.FormFile("logo")
+	if err != nil {
+		http.Error(w, "No image provided", http.StatusBadRequest)
+		return "", false
+	}
+	defer file.Close()
+
+	ct := header.Header.Get("Content-Type")
+	if ct != "image/jpeg" && ct != "image/png" && ct != "image/webp" && ct != "image/svg+xml" {
+		http.Error(w, "Only JPEG, PNG, WebP and SVG images are allowed", http.StatusBadRequest)
+		return "", false
+	}
+
+	imgData, err := io.ReadAll(file)
+	if err != nil {
+		http.Error(w, "Failed to read image", http.StatusBadRequest)
+		return "", false
+	}
+
+	if ct == "image/svg+xml" {
+		return "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString(imgData), true
+	}
+
+	img, _, decErr := image.Decode(bytes.NewReader(imgData))
+	if decErr != nil {
+		http.Error(w, "Invalid image format", http.StatusBadRequest)
+		return "", false
+	}
+	resized := resizeImage(img, 128, 128)
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, resized, &jpeg.Options{Quality: 85}); err != nil {
+		http.Error(w, "Failed to process image", http.StatusInternalServerError)
+		return "", false
+	}
+	return "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(buf.Bytes()), true
+}
+
+// UploadOrgPortalThemeLogo uploads the logo for the org-level default theme.
+// POST /api/v1/admin/conta-azul/portal-theme/logo
+func UploadOrgPortalThemeLogo(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrgID(r)
+	if orgID == primitive.NilObjectID {
+		http.Error(w, "Organization context required", http.StatusBadRequest)
+		return
+	}
+
+	logoURI, ok := decodePortalThemeLogo(w, r)
+	if !ok {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := database.Organizations().UpdateOne(ctx, bson.M{"_id": orgID}, bson.M{
+		"$set": bson.M{"settings.conta_azul_portal_theme.logo_url": logoURI, "updated_at": time.Now()},
+	})
+	if err != nil {
+		http.Error(w, "Erro ao salvar logo", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"logo_url": logoURI})
+}
+
+// UploadEndClientThemeLogo uploads the logo for a specific client's theme override.
+// POST /api/v1/admin/conta-azul/clients/{id}/theme/logo
+func UploadEndClientThemeLogo(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.GetOrgID(r)
+	if orgID == primitive.NilObjectID {
+		http.Error(w, "Organization context required", http.StatusBadRequest)
+		return
+	}
+	idStr := r.PathValue("id")
+	id, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		http.Error(w, "Invalid id", http.StatusBadRequest)
+		return
+	}
+
+	logoURI, ok := decodePortalThemeLogo(w, r)
+	if !ok {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	res, err := database.EndClients().UpdateOne(ctx, bson.M{"_id": id, "org_id": orgID}, bson.M{
+		"$set": bson.M{"portal_theme.logo_url": logoURI, "updated_at": time.Now()},
+	})
+	if err != nil {
+		http.Error(w, "Erro ao salvar logo", http.StatusInternalServerError)
+		return
+	}
+	if res.MatchedCount == 0 {
+		http.Error(w, "Cliente não encontrado", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"logo_url": logoURI})
 }
 
 // ── Admin: org-level default theme ─────────────────────────────────
