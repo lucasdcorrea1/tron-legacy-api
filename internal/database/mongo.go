@@ -80,6 +80,10 @@ func InstagramSchedules() *mongo.Collection {
 	return DB.Collection("instagram_schedules")
 }
 
+func APIKeys() *mongo.Collection {
+	return DB.Collection("api_keys")
+}
+
 func InstagramConfigs() *mongo.Collection {
 	return DB.Collection("instagram_configs")
 }
@@ -683,6 +687,15 @@ func EnsureIndexes() error {
 	// end_client_refresh_tokens: index on token_hash for lookup
 	_, err = EndClientRefreshTokens().Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{{Key: "token_hash", Value: 1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// api_keys: unique lookup by hash of the key
+	_, err = APIKeys().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "key_hash", Value: 1}},
+		Options: options.Index().SetUnique(true),
 	})
 	if err != nil {
 		return err

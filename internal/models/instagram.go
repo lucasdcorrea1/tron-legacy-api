@@ -12,7 +12,7 @@ type InstagramSchedule struct {
 	UserID       primitive.ObjectID `json:"user_id" bson:"user_id"`
 	OrgID        primitive.ObjectID `json:"org_id" bson:"org_id"`
 	Caption      string             `json:"caption" bson:"caption"`
-	MediaType    string             `json:"media_type" bson:"media_type"` // "image" or "carousel"
+	MediaType    string             `json:"media_type" bson:"media_type"` // "image", "carousel" or "story"
 	ImageIDs     []string           `json:"image_ids" bson:"image_ids"`   // IDs of images in the images collection
 	ScheduledAt  time.Time          `json:"scheduled_at" bson:"scheduled_at"`
 	Status       string             `json:"status" bson:"status"` // "scheduled", "publishing", "published", "failed"

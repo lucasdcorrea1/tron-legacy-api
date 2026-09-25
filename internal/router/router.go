@@ -161,6 +161,14 @@ func New() http.Handler {
 		}
 	}
 
+	// Helper: like orgPermPlan, but also accepts an org API key holding the
+	// scope (X-Api-Key) — used by integrations such as an online store.
+	orgKeyPlan := func(scope, minPlan, perm string) func(http.Handler) http.Handler {
+		return func(h http.Handler) http.Handler {
+			return middleware.APIKeyOrAuth(scope)(middleware.RequireOrg(middleware.RequirePlan(minPlan)(middleware.RequirePermission(perm)(h))))
+		}
+	}
+
 	// Helper: auth + org + Conta Azul plan (exact eligibility, not a rank threshold) + permission
 	orgContaAzul := func(perm string) func(http.Handler) http.Handler {
 		return func(h http.Handler) http.Handler {
@@ -189,23 +197,28 @@ func New() http.Handler {
 	// CTA analytics (superuser only — internal Whodo tool)
 	mux.Handle("GET /api/v1/admin/cta-analytics", middleware.Auth(suOnly(http.HandlerFunc(handlers.GetCTAAnalytics))))
 
+	// Org API keys (integrations: X-Api-Key on the Instagram routes below)
+	mux.Handle("GET /api/v1/admin/api-keys", orgRoute("owner", "admin")(http.HandlerFunc(handlers.ListAPIKeys)))
+	mux.Handle("POST /api/v1/admin/api-keys", orgRoute("owner", "admin")(http.HandlerFunc(handlers.CreateAPIKey)))
+	mux.Handle("DELETE /api/v1/admin/api-keys/{id}", orgRoute("owner", "admin")(http.HandlerFunc(handlers.RevokeAPIKey)))
+
 	// Instagram cross-org profiles (auth only — no org context needed)
 	mux.Handle("GET /api/v1/admin/instagram/all-profiles", middleware.Auth(http.HandlerFunc(handlers.ListAllOrgInstagramProfiles)))
 
 	// Instagram scheduling routes (org-scoped, requires starter+)
-	mux.Handle("GET /api/v1/admin/instagram/config", orgRoutePlan("starter", "owner", "admin", "member")(http.HandlerFunc(handlers.GetInstagramConfig)))
+	mux.Handle("GET /api/v1/admin/instagram/config", orgKeyPlan(handlers.APIKeyScopeInstagram, "starter", "instagram:schedule")(http.HandlerFunc(handlers.GetInstagramConfig)))
 	mux.Handle("PUT /api/v1/admin/instagram/config", orgRoutePlan("starter", "owner", "admin")(http.HandlerFunc(handlers.SaveInstagramConfig)))
 	mux.Handle("DELETE /api/v1/admin/instagram/config", orgRoutePlan("starter", "owner", "admin")(http.HandlerFunc(handlers.DeleteInstagramConfig)))
 	mux.Handle("GET /api/v1/admin/instagram/connected-accounts", orgRoutePlan("starter", "owner", "admin", "member")(http.HandlerFunc(handlers.ListConnectedIGAccounts)))
 	mux.Handle("GET /api/v1/admin/instagram/test", orgRoutePlan("starter", "owner", "admin")(http.HandlerFunc(handlers.TestInstagramConnection)))
 	mux.Handle("GET /api/v1/admin/instagram/accounts", orgRoutePlan("starter", "owner", "admin", "member")(http.HandlerFunc(handlers.ListInstagramAccounts)))
 	mux.Handle("GET /api/v1/admin/instagram/feed", orgRoutePlan("starter", "owner", "admin", "member")(http.HandlerFunc(handlers.GetInstagramFeed)))
-	mux.Handle("GET /api/v1/admin/instagram/schedules", orgRoutePlan("starter", "owner", "admin", "member")(http.HandlerFunc(handlers.ListInstagramSchedules)))
-	mux.Handle("POST /api/v1/admin/instagram/schedules", orgPermPlan("starter", "instagram:schedule")(http.HandlerFunc(handlers.CreateInstagramSchedule)))
-	mux.Handle("GET /api/v1/admin/instagram/schedules/{id}", orgRoutePlan("starter", "owner", "admin", "member")(http.HandlerFunc(handlers.GetInstagramSchedule)))
-	mux.Handle("PUT /api/v1/admin/instagram/schedules/{id}", orgPermPlan("starter", "instagram:schedule")(http.HandlerFunc(handlers.UpdateInstagramSchedule)))
+	mux.Handle("GET /api/v1/admin/instagram/schedules", orgKeyPlan(handlers.APIKeyScopeInstagram, "starter", "instagram:schedule")(http.HandlerFunc(handlers.ListInstagramSchedules)))
+	mux.Handle("POST /api/v1/admin/instagram/schedules", orgKeyPlan(handlers.APIKeyScopeInstagram, "starter", "instagram:schedule")(http.HandlerFunc(handlers.CreateInstagramSchedule)))
+	mux.Handle("GET /api/v1/admin/instagram/schedules/{id}", orgKeyPlan(handlers.APIKeyScopeInstagram, "starter", "instagram:schedule")(http.HandlerFunc(handlers.GetInstagramSchedule)))
+	mux.Handle("PUT /api/v1/admin/instagram/schedules/{id}", orgKeyPlan(handlers.APIKeyScopeInstagram, "starter", "instagram:schedule")(http.HandlerFunc(handlers.UpdateInstagramSchedule)))
 	mux.Handle("DELETE /api/v1/admin/instagram/schedules/{id}", orgRoutePlan("starter", "owner", "admin")(http.HandlerFunc(handlers.DeleteInstagramSchedule)))
-	mux.Handle("POST /api/v1/admin/instagram/upload", orgPermPlan("starter", "instagram:schedule")(http.HandlerFunc(handlers.UploadInstagramImage)))
+	mux.Handle("POST /api/v1/admin/instagram/upload", orgKeyPlan(handlers.APIKeyScopeInstagram, "starter", "instagram:schedule")(http.HandlerFunc(handlers.UploadInstagramImage)))
 
 	// Instagram auto-reply routes (org-scoped, requires starter+)
 	mux.Handle("GET /api/v1/admin/instagram/autoreply/rules", orgRoutePlan("starter", "owner", "admin", "member")(http.HandlerFunc(handlers.ListAutoReplyRules)))

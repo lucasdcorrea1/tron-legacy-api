@@ -729,13 +729,13 @@ func CreateInstagramSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.MediaType != "image" && req.MediaType != "carousel" {
-		http.Error(w, "media_type must be 'image' or 'carousel'", http.StatusBadRequest)
+	if !validMediaType(req.MediaType) {
+		http.Error(w, "media_type must be 'image', 'carousel' or 'story'", http.StatusBadRequest)
 		return
 	}
 
-	if req.MediaType == "image" && len(req.ImageIDs) > 1 {
-		http.Error(w, "image type allows only one image; use 'carousel' for multiple", http.StatusBadRequest)
+	if (req.MediaType == "image" || req.MediaType == "story") && len(req.ImageIDs) > 1 {
+		http.Error(w, req.MediaType+" type allows only one image; use 'carousel' for multiple", http.StatusBadRequest)
 		return
 	}
 
@@ -968,8 +968,8 @@ func UpdateInstagramSchedule(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.MediaType != nil {
-		if *req.MediaType != "image" && *req.MediaType != "carousel" {
-			http.Error(w, "media_type must be 'image' or 'carousel'", http.StatusBadRequest)
+		if !validMediaType(*req.MediaType) {
+			http.Error(w, "media_type must be 'image', 'carousel' or 'story'", http.StatusBadRequest)
 			return
 		}
 		setFields["media_type"] = *req.MediaType
@@ -1132,8 +1132,14 @@ func UploadInstagramImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resize to max 1080px width (Instagram requirement)
-	resized := resizeInstagramImage(img, 1080)
+	// Resize to max 1080px width (Instagram requirement). Stories keep their
+	// 9:16 frame; feed images are cropped to the feed aspect limits.
+	var resized image.Image
+	if r.FormValue("format") == "story" {
+		resized = scaleToWidth(img, 1080)
+	} else {
+		resized = resizeInstagramImage(img, 1080)
+	}
 	bounds := resized.Bounds()
 
 	var buf bytes.Buffer
@@ -1209,6 +1215,13 @@ func resizeInstagramImage(img image.Image, maxWidth int) image.Image {
 		srcH = srcH
 	}
 
+	return scaleToWidth(img, maxWidth)
+}
+
+// scaleToWidth shrinks img to maxWidth keeping its aspect ratio (no crop).
+func scaleToWidth(img image.Image, maxWidth int) image.Image {
+	srcW := img.Bounds().Dx()
+	srcH := img.Bounds().Dy()
 	if srcW <= maxWidth {
 		return img
 	}
@@ -1220,6 +1233,11 @@ func resizeInstagramImage(img image.Image, maxWidth int) image.Image {
 	draw.CatmullRom.Scale(dst, dst.Bounds(), img, img.Bounds(), draw.Over, nil)
 
 	return dst
+}
+
+// validMediaType lists the schedule formats the publisher knows how to post.
+func validMediaType(t string) bool {
+	return t == "image" || t == "carousel" || t == "story"
 }
 
 // getPublicImageURL builds the public URL for serving an image
@@ -1249,6 +1267,18 @@ func publishToInstagram(schedule models.InstagramSchedule) (string, error) {
 
 	accountID := creds.AccountID
 	token := creds.Token
+
+	if schedule.MediaType == "story" {
+		containerID, err := createStoryContainer(accountID, token, getPublicImageURL(schedule.ImageIDs[0]))
+		if err != nil {
+			return "", fmt.Errorf("create story container: %w", err)
+		}
+		mediaID, err := publishMediaContainer(accountID, token, containerID)
+		if err != nil {
+			return "", fmt.Errorf("publish story: %w", err)
+		}
+		return mediaID, nil
+	}
 
 	if schedule.MediaType == "image" {
 		// Single image post
@@ -1355,6 +1385,35 @@ func createMediaContainer(accountID, token, imageURL, caption string, isCarousel
 		return id, nil
 	}
 	return "", lastErr
+}
+
+// createStoryContainer creates an image story container (stories take no caption).
+func createStoryContainer(accountID, token, imageURL string) (string, error) {
+	apiURL := fmt.Sprintf("https://graph.facebook.com/v21.0/%s/media", accountID)
+
+	formValues := url.Values{}
+	formValues.Set("media_type", "STORIES")
+	formValues.Set("image_url", imageURL)
+	formValues.Set("access_token", token)
+
+	resp, err := http.PostForm(apiURL, formValues)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+	if errMsg, ok := result["error"]; ok {
+		return "", fmt.Errorf("instagram API error: %v", errMsg)
+	}
+	id, ok := result["id"].(string)
+	if !ok {
+		return "", fmt.Errorf("unexpected response: no id field")
+	}
+	return id, nil
 }
 
 // createCarouselContainer creates a carousel container with children
@@ -1519,8 +1578,8 @@ func ProcessScheduledInstagramPosts() {
 			"updated_at":  time.Now(),
 		}
 
-		// Crosspost to Facebook if enabled
-		if schedule.PostToFacebook {
+		// Crosspost to Facebook if enabled (page stories are not supported)
+		if schedule.PostToFacebook && schedule.MediaType != "story" {
 			fbPostID, fbErr := crosspostToFacebook(schedule)
 			if fbErr != nil {
 				slog.Warn("facebook_crosspost_failed",
