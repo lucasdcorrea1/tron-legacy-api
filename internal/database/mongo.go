@@ -198,6 +198,28 @@ func WebhookLogs() *mongo.Collection {
 	return DB.Collection("webhook_logs")
 }
 
+// ── Security module collections ──────────────────────────────────────
+
+// AccessLogs records every request (TTL ~30 days) for abuse analysis.
+func AccessLogs() *mongo.Collection {
+	return DB.Collection("access_logs")
+}
+
+// SecurityEvents records noteworthy security occurrences (TTL ~180 days).
+func SecurityEvents() *mongo.Collection {
+	return DB.Collection("security_events")
+}
+
+// Blocks holds active IP bans.
+func Blocks() *mongo.Collection {
+	return DB.Collection("blocks")
+}
+
+// SecuritySettings holds the single security policy document.
+func SecuritySettings() *mongo.Collection {
+	return DB.Collection("security_settings")
+}
+
 // EnsureIndexes creates required indexes for engagement collections
 func EnsureIndexes() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -696,6 +718,61 @@ func EnsureIndexes() error {
 	_, err = APIKeys().Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys:    bson.D{{Key: "key_hash", Value: 1}},
 		Options: options.Index().SetUnique(true),
+	})
+	if err != nil {
+		return err
+	}
+
+	// ── Security module indexes ──────────────────────────────────
+
+	// access_logs: TTL — auto-delete after 30 days
+	_, err = AccessLogs().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "created_at", Value: 1}},
+		Options: options.Index().SetExpireAfterSeconds(30 * 24 * 3600),
+	})
+	if err != nil {
+		return err
+	}
+
+	// access_logs: {ip, created_at} for per-IP risk aggregation
+	_, err = AccessLogs().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "ip", Value: 1}, {Key: "created_at", Value: -1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// security_events: TTL — auto-delete after 180 days
+	_, err = SecurityEvents().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "created_at", Value: 1}},
+		Options: options.Index().SetExpireAfterSeconds(180 * 24 * 3600),
+	})
+	if err != nil {
+		return err
+	}
+
+	// security_events: {ip, created_at} and {type, created_at} for lookups
+	_, err = SecurityEvents().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "ip", Value: 1}, {Key: "created_at", Value: -1}},
+	})
+	if err != nil {
+		return err
+	}
+
+	// blocks: unique {kind, value} so a value is blocked once
+	_, err = Blocks().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "kind", Value: 1}, {Key: "value", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	})
+	if err != nil {
+		return err
+	}
+
+	// blocks: TTL on expires_at (0 = honour per-doc value; permanent blocks
+	// use the zero time, which Mongo's TTL ignores as far in the past).
+	_, err = Blocks().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "expires_at", Value: 1}},
+		Options: options.Index().SetExpireAfterSeconds(0),
 	})
 	if err != nil {
 		return err

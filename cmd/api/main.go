@@ -11,7 +11,9 @@ import (
 	"github.com/tron-legacy/api/internal/crypto"
 	"github.com/tron-legacy/api/internal/database"
 	"github.com/tron-legacy/api/internal/handlers"
+	"github.com/tron-legacy/api/internal/middleware"
 	"github.com/tron-legacy/api/internal/router"
+	"github.com/tron-legacy/api/internal/security"
 
 	_ "github.com/tron-legacy/api/docs"
 )
@@ -30,6 +32,11 @@ func main() {
 	// Load configuration
 	cfg := config.Load()
 
+	// Ship every log line (slog + standard log) to Grafana Cloud Loki, in
+	// addition to stdout — no-op if LOKI_CLOUD_* env vars aren't set.
+	middleware.EnableLokiSink(cfg.LokiCloudURL, cfg.LokiCloudUser, cfg.LokiCloudAPIKey)
+	log.SetOutput(middleware.Writer())
+
 	// Connect to MongoDB
 	if err := database.Connect(cfg.MongoURI, cfg.DBName); err != nil {
 		log.Fatalf("Failed to connect to MongoDB: %v", err)
@@ -40,6 +47,9 @@ func main() {
 	if err := database.EnsureIndexes(); err != nil {
 		log.Printf("Warning: failed to ensure indexes: %v", err)
 	}
+
+	// Start the security guard (policy + block guard + access-log writer).
+	security.Start()
 
 	// Initialize encryption (optional — needed for per-user Instagram config)
 	if cfg.EncryptionKey != "" {

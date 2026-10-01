@@ -18,7 +18,7 @@ scrape_configs:
         regex: '/(.*)'
         target_label: 'container'
       - source_labels: ['__meta_docker_container_name']
-        regex: '/backend[-_]api[-_].*'
+        regex: '/.*-api-[0-9]+'
         action: keep
     pipeline_stages:
       - json:

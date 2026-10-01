@@ -3,15 +3,16 @@ package middleware
 import (
 	"log/slog"
 	"net/http"
-	"os"
 	"time"
 )
 
 var logger *slog.Logger
 
 func init() {
-	// JSON logger for production (Loki/Grafana friendly)
-	logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	// JSON logger for production (Loki/Grafana friendly). Writer() always
+	// writes to stdout, and additionally mirrors to Grafana Cloud Loki if
+	// EnableLokiSink was called (see loki_sink.go).
+	logger = slog.New(slog.NewJSONHandler(Writer(), &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
 	slog.SetDefault(logger)
@@ -78,7 +79,7 @@ func Logger(next http.Handler) http.Handler {
 			slog.Int("status", rw.status),
 			slog.Int("size", rw.size),
 			slog.Duration("duration", duration),
-			slog.String("ip", r.RemoteAddr),
+			slog.String("ip", extractIP(r)),
 			slog.String("user_agent", r.UserAgent()),
 		)
 	})

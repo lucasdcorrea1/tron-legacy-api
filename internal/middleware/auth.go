@@ -78,6 +78,9 @@ func Auth(next http.Handler) http.Handler {
 			ctx = context.WithValue(ctx, orgIDClaimKey, claims.OrgID)
 		}
 
+		// Record identity for the access log (no-op if not being logged).
+		noteIdentity(r, claims.UserID, claims.OrgID)
+
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

@@ -12,3 +12,13 @@ services:
         value: 168h
       - key: PORT
         value: 8080
+      - key: FRONTEND_URL
+        value: https://www.whodo.com.br
+      - key: ALLOWED_HOSTS
+        value: tron-legacy-api.onrender.com
+      - key: LOKI_CLOUD_URL
+        sync: false  # URL do push endpoint do Grafana Cloud Loki (termina em /loki/api/v1/push)
+      - key: LOKI_CLOUD_USER
+        sync: false  # Instance ID (username) do Loki no Grafana Cloud
+      - key: LOKI_CLOUD_API_KEY
+        sync: false  # API token gerado no Grafana Cloud

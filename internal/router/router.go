@@ -379,6 +379,21 @@ func New() http.Handler {
 	mux.Handle("POST /api/v1/platform/jobs/{id}/trigger", middleware.Auth(middleware.RequireRole("superadmin", "superuser")(http.HandlerFunc(handlers.PlatformTriggerJob))))
 
 	// ==========================================
+	// SECURITY MODULE (superadmin/superuser only)
+	// ==========================================
+	secSU := func(h http.HandlerFunc) http.Handler {
+		return middleware.Auth(middleware.RequireRole("superadmin", "superuser")(http.HandlerFunc(h)))
+	}
+	mux.Handle("GET /api/v1/admin/security/overview", secSU(handlers.SecurityOverview))
+	mux.Handle("GET /api/v1/admin/security/access-logs", secSU(handlers.SecurityAccessLogs))
+	mux.Handle("GET /api/v1/admin/security/events", secSU(handlers.SecurityEvents))
+	mux.Handle("GET /api/v1/admin/security/policy", secSU(handlers.GetSecurityPolicy))
+	mux.Handle("PUT /api/v1/admin/security/policy", secSU(handlers.UpdateSecurityPolicy))
+	mux.Handle("GET /api/v1/admin/security/blocks", secSU(handlers.ListBlocks))
+	mux.Handle("POST /api/v1/admin/security/blocks", secSU(handlers.CreateBlock))
+	mux.Handle("DELETE /api/v1/admin/security/blocks/{ip}", secSU(handlers.DeleteBlock))
+
+	// ==========================================
 	// CONTABIL MODULE ROUTES
 	// ==========================================
 
@@ -471,6 +486,17 @@ func New() http.Handler {
 	var handler http.Handler = mux
 	handler = middleware.JSON(handler)
 	handler = middleware.CORS(handler)
+	// GlobalRateLimit returns 429 for abusive IPs; AccessLog wraps it so those
+	// 429s (and handler 401/403/404s) are recorded for risk analysis. BlockGuard
+	// sits outside AccessLog: already-blocked IPs are rejected cheaply with 403
+	// and are NOT logged again (so a sustained flood can't bloat the DB).
+	handler = middleware.GlobalRateLimit(handler)
+	handler = middleware.AccessLog(handler)
+	handler = middleware.BlockGuard(handler)
+	// HostFilter and the above must stay inside Metrics/Logger (below) so that
+	// rejected (403/429) requests still get logged and counted in Prometheus,
+	// instead of short-circuiting before those wrap them.
+	handler = middleware.HostFilter(handler)
 	handler = middleware.MetricsMiddleware(handler)
 	handler = middleware.Logger(handler)
 

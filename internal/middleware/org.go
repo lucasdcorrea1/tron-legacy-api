@@ -90,6 +90,10 @@ func RequireOrg(next http.Handler) http.Handler {
 		ctx2 := context.WithValue(r.Context(), OrgIDKey, orgID)
 		ctx2 = context.WithValue(ctx2, OrgRoleKey, membership.OrgRole)
 		ctx2 = context.WithValue(ctx2, OrgPermissionsKey, membership.Permissions)
+
+		// Record the resolved org for the access log (no-op if not being logged).
+		noteIdentity(r, "", orgID.Hex())
+
 		next.ServeHTTP(w, r.WithContext(ctx2))
 	})
 }
